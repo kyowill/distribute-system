@@ -52,9 +52,10 @@ type Paxos struct {
 	rpcCount   int32 // for testing
 	peers      []string
 	me         int // index into peers[]
-
-
 	// Your data here.
+	peer_count int // number of peers
+	state map[int]*AgreementState  // Key: Agreement instance number -> Value: Agreement State
+	done map[string]int            // Key: Server name, Value: The most recently received value for that server's highest done value.
 }
 
 //
@@ -103,6 +104,18 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
 //
 func (px *Paxos) Start(seq int, v interface{}) {
 	// Your code here.
+	px.mu.Lock()
+	defer px.mu.unLock()
+
+	if seq <= px.minimum_done_number() {
+		return
+	}
+	_, present := px.state[agreement_number]
+	if !present {
+		px.state[seq] = px.make_default_agreementstate()
+	}
+
+	go px.proposer_role(seq, v)
 }
 
 //
@@ -216,6 +229,12 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 
 
 	// Your initialization code here.
+	px.peer_count = len(peers)
+	px.state = map[int]*AgreementState{}
+	px.done = map[string]int{}
+	for _, peer := range px.peers {
+		px.done[peer] = -1
+	}
 
 	if rpcs != nil {
 		// caller will create socket &c
@@ -271,3 +290,62 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 
 	return px
 }
+
+func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{}){
+
+
+}
+
+func (px *Paxos) prepare_handler(args *PrepareArgs, reply *PrepareReply) {
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	var agreement_number = args.Agreement_number
+  	var proposal_number = args.Proposal_number
+	
+	_, present = px.state[agreement_number]
+	if !present {
+		px.state[agreement_number] = px.make_default_agreementstate()
+	}
+	
+	if proposal_number > px.state[agreement_number].proposal_number {
+		px.state[agreement_number].proposal_number = proposal_number
+		reply.Prepare_ok = true
+		reply.Number_promised = proposal_number
+		reply.Accepted_proposal = px.state[agreement_number].accepted_proposal
+	}
+}
+
+/*
+Returns a reference to an AgreementState instance initialized with the correct default
+values so that it is ready to be used in the px.state map.
+The highest seen and highest promised are set to -1 and the proposal number is set to
+the px.me index minux the number of peers since each time next_proposal_number is 
+called, the number is incremented by the number of peers.
+*/
+func (px *Paxos) make_default_agreementstate() *AgreementState {
+  initial_proposal_number := px.me
+  agrst := AgreementState{highest_promised: -1,
+                          decided: false,
+                          proposal_number: initial_proposal_number,
+                          accepted_proposal: Proposal{Number: -1},
+                        } 
+  return &agrst
+}
+
+/*
+Computes the minimum agreement number marked as done among all the done agreement 
+numbers reported back by peers and represented in the px.peers map.
+Callee is responsible for taking out a lock on the paxos instance.
+*/
+func (px *Paxos) minimum_done_number() int {
+  var min_done_number = px.done[px.peers[px.me]]
+  for _, peers_done_number := range px.done {
+    if peers_done_number < min_done_number {
+      min_done_number = peers_done_number
+    }
+  }
+  return min_done_number
+}
+
+func (px *Paxos) 
