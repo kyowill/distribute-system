@@ -22,8 +22,8 @@ type AcceptArgs struct {
 }
 
 type AcceptReply struct {
-	Agreement_number int //number of the agreement instance
-	Highest_done     int // sender's highest "done" argument number
+	Accept_ok    bool // whether the accept proposal request was accepted
+	Highest_done int  // sender's highest "done" argument number
 }
 
 type DecidedArgs struct {

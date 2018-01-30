@@ -327,8 +327,9 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) {
 	}
 
 	if proposal.Number >= px.state[agreement_number].highest_promised {
-		reply.Agreement_number = agreement_number
-		reply.Highest_done = 
+		reply.Accept_ok = true
+		reply.Highest_done = px.done[px.peers[px.me]]
+		px.state[agreement_number].accepted_proposal = proposal
 	}
 }
 
