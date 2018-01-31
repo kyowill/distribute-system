@@ -105,9 +105,6 @@ func (px *Paxos) Start(seq int, v interface{}) {
 	px.mu.Lock()
 	defer px.mu.unLock()
 
-	if seq <= px.minimum_done_number() {
-		return
-	}
 	_, present := px.state[agreement_number]
 	if !present {
 		px.state[seq] = px.make_default_agreementstate()
@@ -289,7 +286,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 
 }
 
-func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) {
+func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) error {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
@@ -313,7 +310,7 @@ func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) {
 	return nil
 }
 
-func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) {
+func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) error {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
@@ -337,7 +334,7 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) {
 	return nil
 }
 
-func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) {
+func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) error {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
@@ -352,6 +349,16 @@ func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) {
 	px.state[agreement_number].decided_proposal = proposal
 	px.state[agreement_number].accepted_proposal = proposal
 	px.state[agreement_number].decided = true
+}
+
+func (px *Paxos) broadcast_prepare(agreement_number int) []PrepareReply {
+
+	var replies_in_prepare []PrepareReply = make([]PrepareReply, px.peer_count)
+	for index, peer := range px.peers {
+		if peer == px.peers[px.me] {
+
+		}
+	}
 }
 
 /*
