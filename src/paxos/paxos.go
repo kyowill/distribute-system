@@ -323,14 +323,35 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) {
 	_, present = px.state[agreement_number]
 
 	if !present {
-		return nil
+		px.state[agreement_number] = px.make_default_agreementstate()
 	}
 
 	if proposal.Number >= px.state[agreement_number].highest_promised {
 		reply.Accept_ok = true
 		reply.Highest_done = px.done[px.peers[px.me]]
 		px.state[agreement_number].accepted_proposal = proposal
+	} else {
+		reply.Accept_ok = false
+		reply.Highest_done = px.done[px.peers[px.me]]
 	}
+	return nil
+}
+
+func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) {
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	var agreement_number = args.Agreement_number
+	var proposal = args.Proposal
+
+	_, present = px.state[agreement_number]
+
+	if !present {
+		px.state[agreement_number] = px.make_default_agreementstate()
+	}
+	px.state[agreement_number].decided_proposal = proposal
+	px.state[agreement_number].accepted_proposal = proposal
+	px.state[agreement_number].decided = true
 }
 
 /*
