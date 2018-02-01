@@ -351,13 +351,47 @@ func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) error {
 	px.state[agreement_number].decided = true
 }
 
-func (px *Paxos) broadcast_prepare(agreement_number int) []PrepareReply {
+func (px *Paxos) broadcast_prepare(agreement_number int, proposal Proposal) []PrepareReply {
 
 	var replies_in_prepare []PrepareReply = make([]PrepareReply, px.peer_count)
+	var reply PrepareReply
+	args := &PrepareArgs{}
+	args.Agreement_number = agreement_number
+	args.Proposal_number = proposal.Number
 	for index, peer := range px.peers {
-		if peer == px.peers[px.me] {
-
+		ok := call(peer, "Paxos.Prepare_handler", args, &reply)
+		if ok {
+			replies_in_prepare[index] = reply
+		} else {
+			replies_in_prepare[index] = PrepareReply{Prepare_ok: false, Number_promised: -1, Accepted_proposal: Proposal{Number: -1}}
 		}
+	}
+	return replies_in_prepare
+}
+
+func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []AcceptReply {
+	var replies_in_accept []AcceptReply = make([]AcceptReply, px.peer_count)
+	var reply AcceptReply
+	args := &AcceptArgs{}
+	args.Agreement_number = agreement_number
+	args.Proposal = proposal
+	for index, peer := range px.peers {
+		ok := call(peer, "Paxos.Accept_handler", args, &reply)
+		if ok {
+			replies_in_accept[index] = reply
+		} else {
+			replies_in_accept[index] = AcceptReply{Accept_ok: false, Highest_done: -1}
+		}
+	}
+	return replies_in_accept
+}
+
+func (px *Paxos) broadcast_decide(agreement_number int, proposal Proposal) {
+	args := &DecidedArgs{}
+	args.Agreement_number = agreement_number
+	args.Proposal = proposal
+	for index, peer := range px.peers {
+		call(peer, "Paxos.Decide_handler", args, nil)
 	}
 }
 
