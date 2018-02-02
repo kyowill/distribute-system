@@ -103,9 +103,9 @@ func call(srv string, name string, args interface{}, reply interface{}) bool {
 func (px *Paxos) Start(seq int, v interface{}) {
 	// Your code here.
 	px.mu.Lock()
-	defer px.mu.unLock()
+	defer px.mu.Unlock()
 
-	_, present := px.state[agreement_number]
+	_, present := px.state[seq]
 	if !present {
 		px.state[seq] = px.make_default_agreementstate()
 	}
@@ -355,6 +355,7 @@ func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) error {
 	px.state[agreement_number].decided_proposal = proposal
 	px.state[agreement_number].accepted_proposal = proposal
 	px.state[agreement_number].decided = true
+	return nil
 }
 
 func (px *Paxos) broadcast_prepare(agreement_number int, proposal Proposal) []PrepareReply {
@@ -411,7 +412,7 @@ func (px *Paxos) evaluate_prepare_replies(replies []PrepareReply) (bool, int, Pr
 			continue
 		}
 
-		if reply.Accepted_proposal.Number > -1 {
+		if reply.Accepted_proposal.Number > highest_proposal_number {
 
 		}
 
