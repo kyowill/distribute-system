@@ -283,7 +283,13 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 }
 
 func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{}) {
-	var proposal_number = px.next_proposal_number(agreement_number)
+	var proposal_number = -1
+	for px.still_deciding(agreement_number) && (!px.isdead()) {
+		proposal_number = px.next_proposal_number(agreement_number)
+		proposal := Proposal{Number: proposal_number, Value: proposal_value}
+		replies_in_prepare := px.broadcast_prepare(agreement_number, proposal)
+
+	}
 }
 
 func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) error {
@@ -395,6 +401,25 @@ func (px *Paxos) broadcast_decide(agreement_number int, proposal Proposal) {
 	}
 }
 
+func (px *Paxos) evaluate_prepare_replies(replies []PrepareReply) (bool, int, Proposal) {
+	var ok_count = 0
+	var highest_proposal_number = -1
+	var proposal = Proposal{Number: -1}
+	for _, reply := range replies {
+
+		if !reply.Prepare_ok {
+			continue
+		}
+
+		if reply.Accepted_proposal.Number > -1 {
+
+		}
+
+		ok_count += 1
+
+	}
+}
+
 /*
 Returns a reference to an AgreementState instance initialized with the correct default
 values so that it is ready to be used in the px.state map.
@@ -447,8 +472,15 @@ func (px *Paxos) still_deciding(agreement_number int) bool {
 	}
 
 	if px.state[agreement_number].decided {
-		return true
-	} else {
 		return false
+	} else {
+		return true
 	}
+}
+
+func (px *Paxos) is_majority(ok_count int) bool {
+	if ok_count > (px.peer_count / 2) {
+		return true
+	}
+	return false
 }
