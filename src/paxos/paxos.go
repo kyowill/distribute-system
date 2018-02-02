@@ -283,7 +283,7 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 }
 
 func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{}) {
-
+	var proposal_number = px.next_proposal_number(agreement_number)
 }
 
 func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) error {
@@ -293,7 +293,7 @@ func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) error {
 	var agreement_number = args.Agreement_number
 	var proposal_number = args.Proposal_number
 
-	_, present = px.state[agreement_number]
+	_, present := px.state[agreement_number]
 	if !present {
 		px.state[agreement_number] = px.make_default_agreementstate()
 	}
@@ -317,7 +317,7 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) error {
 	var agreement_number = args.Agreement_number
 	var proposal = args.Proposal
 
-	_, present = px.state[agreement_number]
+	_, present := px.state[agreement_number]
 
 	if !present {
 		px.state[agreement_number] = px.make_default_agreementstate()
@@ -341,7 +341,7 @@ func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) error {
 	var agreement_number = args.Agreement_number
 	var proposal = args.Proposal
 
-	_, present = px.state[agreement_number]
+	_, present := px.state[agreement_number]
 
 	if !present {
 		px.state[agreement_number] = px.make_default_agreementstate()
@@ -425,4 +425,30 @@ func (px *Paxos) minimum_done_number() int {
 		}
 	}
 	return min_done_number
+}
+
+func (px *Paxos) next_proposal_number(agreement_number int) int {
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	var proposal_number = px.state[agreement_number].proposal_number + px.peer_count
+	px.state[agreement_number].proposal_number = proposal_number
+	return proposal_number
+}
+
+func (px *Paxos) still_deciding(agreement_number int) bool {
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	_, present := px.state[agreement_number]
+
+	if !present {
+		px.state[agreement_number] = px.make_default_agreementstate()
+	}
+
+	if px.state[agreement_number].decided {
+		return true
+	} else {
+		return false
+	}
 }
