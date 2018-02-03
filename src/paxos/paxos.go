@@ -121,6 +121,9 @@ func (px *Paxos) Start(seq int, v interface{}) {
 //
 func (px *Paxos) Done(seq int) {
 	// Your code here.
+	px.mu.Lock()
+	defer px.mu.Unlock()
+	px.done[px.peers[px.me]] = seq
 }
 
 //
@@ -130,7 +133,15 @@ func (px *Paxos) Done(seq int) {
 //
 func (px *Paxos) Max() int {
 	// Your code here.
-	return 0
+	px.mu.Lock()
+	defer px.mu.Unlock()
+	var max_agreement_number = 0
+	for agreement_number, _ := range px.state {
+		if agreement_number > max_agreement_number {
+			max_agreement_number = agreement_number
+		}
+	}
+	return max_agreement_number
 }
 
 //
@@ -175,6 +186,11 @@ func (px *Paxos) Min() int {
 //
 func (px *Paxos) Status(seq int) (Fate, interface{}) {
 	// Your code here.
+	px.mu.Lock()
+	defer px.mu.Unlock()
+	if px.state[seq].decided {
+		return Decided, px.state[seq].decided_proposal.Value
+	}
 	return Pending, nil
 }
 
@@ -286,9 +302,24 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 	var proposal_number = -1
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
 		proposal_number = px.next_proposal_number(agreement_number)
+		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
 		replies_in_prepare := px.broadcast_prepare(agreement_number, proposal)
+		majority_prepare, highest_proposal := px.evaluate_prepare_replies(replies_in_prepare)
 
+		if !majority_prepare {
+			continue
+		}
+		//accept
+		proposal.Value = highest_proposal.Value
+		replies_in_accept := px.broadcast_accept(agreement_number, proposal)
+		majority_accept := px.evaluate_accept_replies(replies_in_accept)
+
+		if !majority_accept {
+			continue
+		}
+		//decide
+		px.broadcast_decide(agreement_number, proposal)
 	}
 }
 
@@ -397,12 +428,12 @@ func (px *Paxos) broadcast_decide(agreement_number int, proposal Proposal) {
 	args := &DecidedArgs{}
 	args.Agreement_number = agreement_number
 	args.Proposal = proposal
-	for index, peer := range px.peers {
+	for _, peer := range px.peers {
 		call(peer, "Paxos.Decide_handler", args, nil)
 	}
 }
 
-func (px *Paxos) evaluate_prepare_replies(replies []PrepareReply) (bool, int, Proposal) {
+func (px *Paxos) evaluate_prepare_replies(replies []PrepareReply) (bool, Proposal) {
 	var ok_count = 0
 	var highest_proposal_number = -1
 	var proposal = Proposal{Number: -1}
@@ -413,12 +444,27 @@ func (px *Paxos) evaluate_prepare_replies(replies []PrepareReply) (bool, int, Pr
 		}
 
 		if reply.Accepted_proposal.Number > highest_proposal_number {
-
+			proposal.Number = reply.Accepted_proposal.Number
+			proposal.Value = reply.Accepted_proposal.Value
+			highest_proposal_number = reply.Accepted_proposal.Number
 		}
 
 		ok_count += 1
-
 	}
+	if px.is_majority(ok_count) {
+		return true, proposal
+	}
+	return false, proposal
+}
+
+func (px *Paxos) evaluate_accept_replies(replies []AcceptReply) bool {
+	var ok_count = 0
+	for _, reply := range replies {
+		if reply.Accept_ok {
+			ok_count += 1
+		}
+	}
+	return px.is_majority(ok_count)
 }
 
 /*
