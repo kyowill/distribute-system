@@ -34,6 +34,7 @@ func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
 	var v interface{}
 	for i := 0; i < len(pxa); i++ {
 		if pxa[i] != nil {
+			//fmt.Println(i)
 			decided, v1 := pxa[i].Status(seq)
 			if decided == Decided {
 				if count > 0 && v != v1 {
@@ -129,6 +130,7 @@ func TestBasic(t *testing.T) {
 	fmt.Printf("Test: Single proposer ...\n")
 
 	pxa[0].Start(0, "hello")
+	// fmt.Println("666")
 	waitn(t, pxa, 0, npaxos)
 
 	fmt.Printf("  ... Passed\n")
@@ -196,32 +198,40 @@ func TestDeaf(t *testing.T) {
 
 	pxa[1].Start(1, "goodbye")
 	waitmajority(t, pxa, 1)
+	fmt.Println("debug deaf1")
 	time.Sleep(1 * time.Second)
+
 	if ndecided(t, pxa, 1) != npaxos-2 {
 		t.Fatalf("a deaf peer heard about a decision")
 	}
 
+	//fmt.Printf("decided number %v\n", num_decide)
+	fmt.Println("debug deaf2")
 	pxa[0].Start(1, "xxx")
 	waitn(t, pxa, 1, npaxos-1)
 	time.Sleep(1 * time.Second)
+	//num_decide := ndecided(t, pxa, 1)
+	//fmt.Printf("decided number %v\n", num_decide)
 	if ndecided(t, pxa, 1) != npaxos-1 {
 		t.Fatalf("a deaf peer heard about a decision")
 	}
-
+	fmt.Println("debug deaf3")
 	pxa[npaxos-1].Start(1, "yyy")
 	waitn(t, pxa, 1, npaxos)
 
+	fmt.Println("debug deaf4")
 	fmt.Printf("  ... Passed\n")
 }
 
 func TestForget(t *testing.T) {
+
 	runtime.GOMAXPROCS(4)
 
 	const npaxos = 6
 	var pxa []*Paxos = make([]*Paxos, npaxos)
 	var pxh []string = make([]string, npaxos)
 	defer cleanup(pxa)
-
+	pxa[6] = Make(pxh, 6, nil)
 	for i := 0; i < npaxos; i++ {
 		pxh[i] = port("gc", i)
 	}
