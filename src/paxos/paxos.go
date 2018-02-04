@@ -299,8 +299,10 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 }
 
 func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{}) {
+
 	var proposal_number = -1
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
+		//fmt.Println("666")
 		proposal_number = px.next_proposal_number(agreement_number)
 		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
