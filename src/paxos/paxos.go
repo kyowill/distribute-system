@@ -188,9 +188,17 @@ func (px *Paxos) Status(seq int) (Fate, interface{}) {
 	// Your code here.
 	px.mu.Lock()
 	defer px.mu.Unlock()
+
+	_, present := px.state[seq]
+
+	if !present {
+		px.state[seq] = px.make_default_agreementstate()
+	}
+
 	if px.state[seq].decided {
 		return Decided, px.state[seq].decided_proposal.Value
 	}
+
 	return Pending, nil
 }
 
@@ -240,6 +248,7 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 	px.peer_count = len(peers)
 	px.state = map[int]*AgreementState{}
 	px.done = map[string]int{}
+	px.dead = 0
 	for _, peer := range px.peers {
 		px.done[peer] = -1
 	}
@@ -301,8 +310,8 @@ func Make(peers []string, me int, rpcs *rpc.Server) *Paxos {
 func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{}) {
 
 	var proposal_number = -1
+
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
-		//fmt.Println("666")
 		proposal_number = px.next_proposal_number(agreement_number)
 		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
@@ -525,6 +534,7 @@ func (px *Paxos) still_deciding(agreement_number int) bool {
 	} else {
 		return true
 	}
+
 }
 
 func (px *Paxos) is_majority(ok_count int) bool {
