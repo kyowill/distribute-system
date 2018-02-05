@@ -174,7 +174,10 @@ func (px *Paxos) Max() int {
 //
 func (px *Paxos) Min() int {
 	// You code here.
-	return 0
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	return -1
 }
 
 //
@@ -408,7 +411,15 @@ func (px *Paxos) broadcast_prepare(agreement_number int, proposal Proposal) []Pr
 	args.Agreement_number = agreement_number
 	args.Proposal_number = proposal.Number
 	for index, peer := range px.peers {
+
+		if peer == px.peers[px.me] {
+			px.Prepare_handler(args, &reply)
+			replies_in_prepare[index] = reply
+			continue
+		}
+
 		ok := call(peer, "Paxos.Prepare_handler", args, &reply)
+
 		if ok {
 			replies_in_prepare[index] = reply
 		} else {
@@ -425,7 +436,15 @@ func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []Acc
 	args.Agreement_number = agreement_number
 	args.Proposal = proposal
 	for index, peer := range px.peers {
+
+		if peer == px.peers[px.me] {
+			px.Accept_handler(args, &reply)
+			replies_in_accept[index] = reply
+			continue
+		}
+
 		ok := call(peer, "Paxos.Accept_handler", args, &reply)
+
 		if ok {
 			replies_in_accept[index] = reply
 		} else {
@@ -440,7 +459,14 @@ func (px *Paxos) broadcast_decide(agreement_number int, proposal Proposal) {
 	args.Agreement_number = agreement_number
 	args.Proposal = proposal
 	for _, peer := range px.peers {
+
+		if peer == px.peers[px.me] {
+			px.Decide_handler(args, nil)
+			continue
+		}
+
 		call(peer, "Paxos.Decide_handler", args, nil)
+
 	}
 }
 
