@@ -227,7 +227,7 @@ func TestForget(t *testing.T) {
 	var pxa []*Paxos = make([]*Paxos, npaxos)
 	var pxh []string = make([]string, npaxos)
 	defer cleanup(pxa)
-	pxa[6] = Make(pxh, 6, nil)
+
 	for i := 0; i < npaxos; i++ {
 		pxh[i] = port("gc", i)
 	}

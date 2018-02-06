@@ -123,7 +123,10 @@ func (px *Paxos) Done(seq int) {
 	// Your code here.
 	px.mu.Lock()
 	defer px.mu.Unlock()
-	px.done[px.peers[px.me]] = seq
+
+	if seq > px.done[px.peers[px.me]] {
+		px.done[px.peers[px.me]] = seq
+	}
 }
 
 //
@@ -177,7 +180,7 @@ func (px *Paxos) Min() int {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
-	return -1
+	return px.minimum_done_number() + 1
 }
 
 //
@@ -440,6 +443,7 @@ func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []Acc
 		if peer == px.peers[px.me] {
 			px.Accept_handler(args, &reply)
 			replies_in_accept[index] = reply
+			//px.done[peer] = reply.Highest_done
 			continue
 		}
 
@@ -447,6 +451,7 @@ func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []Acc
 
 		if ok {
 			replies_in_accept[index] = reply
+			//px.done[peer] = reply.Highest_done
 		} else {
 			replies_in_accept[index] = AcceptReply{Accept_ok: false, Highest_done: -1}
 		}
@@ -568,4 +573,24 @@ func (px *Paxos) is_majority(ok_count int) bool {
 		return true
 	}
 	return false
+}
+
+func (px *Paxos) update_done_entry(peer string, highest_done int) {
+	px.mu.Lock()
+	defer px.mu.Unlock()
+
+	if highest_done > px.done[peer] {
+		px.done[peer] = highest_done
+		px.attempt_free_state()
+	}
+}
+
+func (px *Paxos) attempt_free_state() {
+	var minimum = px.minimum_done_number()
+
+	for agreement_number, _ := range px.state {
+		if agreement_number < minimum {
+			delete(px.state, agreement_number)
+		}
+	}
 }
