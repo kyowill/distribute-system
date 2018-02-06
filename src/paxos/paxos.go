@@ -105,7 +105,7 @@ func (px *Paxos) Start(seq int, v interface{}) {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
-	if seq < px.minimum_done_number() {
+	if seq <= px.minimum_done_number() {
 		return
 	}
 
@@ -200,7 +200,7 @@ func (px *Paxos) Status(seq int) (Fate, interface{}) {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
-	if seq < px.minimum_done_number() {
+	if seq <= px.minimum_done_number() {
 		return Forgotten, nil
 	}
 
@@ -356,10 +356,6 @@ func (px *Paxos) Prepare_handler(args *PrepareArgs, reply *PrepareReply) error {
 	var agreement_number = args.Agreement_number
 	var proposal_number = args.Proposal_number
 
-	if agreement_number < px.minimum_done_number() {
-		return nil
-	}
-
 	_, present := px.state[agreement_number]
 	if !present {
 		px.state[agreement_number] = px.make_default_agreementstate()
@@ -384,10 +380,6 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) error {
 	var agreement_number = args.Agreement_number
 	var proposal = args.Proposal
 
-	if agreement_number < px.minimum_done_number() {
-		return nil
-	}
-
 	_, present := px.state[agreement_number]
 
 	if !present {
@@ -411,10 +403,6 @@ func (px *Paxos) Decide_handler(args *DecidedArgs, reply *DecidedReply) error {
 
 	var agreement_number = args.Agreement_number
 	var proposal = args.Proposal
-
-	if agreement_number < px.minimum_done_number() {
-		return nil
-	}
 
 	_, present := px.state[agreement_number]
 
@@ -576,7 +564,7 @@ func (px *Paxos) still_deciding(agreement_number int) bool {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
-	if agreement_number < px.minimum_done_number() {
+	if agreement_number <= px.minimum_done_number() {
 		return false
 	}
 
