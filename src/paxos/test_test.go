@@ -430,10 +430,10 @@ func TestForgetMem(t *testing.T) {
 	var m2 runtime.MemStats
 	runtime.ReadMemStats(&m2)
 	// m2.Alloc about 10 megabytes
-
-	// if m2.Alloc > (m1.Alloc / 2) {
-	// 	t.Fatalf("memory use did not shrink enough")
-	// }
+	fmt.Printf("m2 %v, m1 %v \n", m2.Alloc, m1.Alloc/2)
+	if m2.Alloc > (m1.Alloc / 2) {
+		t.Fatalf("memory use did not shrink enough")
+	}
 
 	again := make([]string, 10)
 	for seq := 0; seq < npaxos && seq < 10; seq++ {
