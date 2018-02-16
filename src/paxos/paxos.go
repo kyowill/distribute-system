@@ -576,9 +576,8 @@ func (px *Paxos) still_deciding(agreement_number int) bool {
 
 	if px.state[agreement_number].decided {
 		return false
-	} else {
-		return true
 	}
+	return true
 
 }
 
