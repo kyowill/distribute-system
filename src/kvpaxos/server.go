@@ -12,7 +12,6 @@ import "syscall"
 import "encoding/gob"
 import "math/rand"
 
-
 const Debug = 0
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
@@ -22,11 +21,14 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
-
 type Op struct {
 	// Your definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
+	OpID  int64
+	Op    string
+	Key   string
+	Value string
 }
 
 type KVPaxos struct {
@@ -38,17 +40,62 @@ type KVPaxos struct {
 	px         *paxos.Paxos
 
 	// Your definitions here.
+	kvstore          map[string]string     // store kv pair
+	filters          map[int64]bool        // to filter duplicates
+	replies          map[int64]interface{} // history replies (key:OpID)
+	agreement_number int64                 // paxos instance last agreement number
 }
 
+func (kv *KVPaxos) Lock() {
+	kv.mu.Lock()
+}
+
+func (kv *KVPaxos) Unlock() {
+	kv.mu.Unlock()
+}
+
+func (kv *KVPaxos) sync(op *Op) {
+
+}
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
+	kv.Lock()
+	defer kv.Unlock()
+
+	_, ok := kv.filters[args.OpID]
+	if ok {
+		reply.Value = kv.replies[args.OpID].(*GetReply).Value
+		reply.Err = kv.replies[args.OpID].(*GetReply).Err
+		return nil
+	}
+
+	op := &Op{OpID: args.OpID, Op: "get", Key: args.Key, Value: ""}
+
+	kv.sync(op)
+
+	reply.Value = kv.replies[args.OpID].(*GetReply).Value
+	reply.Err = kv.replies[args.OpID].(*GetReply).Err
+
 	return nil
 }
 
 func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 	// Your code here.
+	kv.Lock()
+	defer kv.Unlock()
 
+	_, ok := kv.filters[args.OpID]
+	if ok {
+		reply.Err = kv.replies[args.OpID].(*PutAppendReply).Err
+		return nil
+	}
+
+	op := &Op{OpID: args.OpID, Op: args.Op, Key: args.Key, Value: args.Value}
+
+	kv.sync(op)
+
+	reply.Err = kv.replies[args.OpID].(*PutAppendReply).Err
 	return nil
 }
 
@@ -94,6 +141,9 @@ func StartServer(servers []string, me int) *KVPaxos {
 	kv.me = me
 
 	// Your initialization code here.
+	kv.filters = make(map[int64]bool)
+	kv.kvstore = make(map[string]string)
+	kv.replies = make(map[int64]interface{})
 
 	rpcs := rpc.NewServer()
 	rpcs.Register(kv)
@@ -106,7 +156,6 @@ func StartServer(servers []string, me int) *KVPaxos {
 		log.Fatal("listen error: ", e)
 	}
 	kv.l = l
-
 
 	// please do not change any of the following code,
 	// or do anything to subvert it.
