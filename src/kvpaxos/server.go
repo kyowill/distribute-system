@@ -12,6 +12,9 @@ import "syscall"
 import "encoding/gob"
 import "math/rand"
 
+import "time"
+
+
 const Debug = 0
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
@@ -43,8 +46,10 @@ type KVPaxos struct {
 	kvstore          map[string]string     // store kv pair
 	filters          map[int64]bool        // to filter duplicates
 	replies          map[int64]interface{} // history replies (key:OpID)
-	agreement_number int64                 // paxos instance last agreement number
+	//agreement_number int64                 // paxos instance last agreement number
 }
+
+const TickInterval = 100 * time.Millisecond
 
 func (kv *KVPaxos) Lock() {
 	kv.mu.Lock()
@@ -54,8 +59,53 @@ func (kv *KVPaxos) Unlock() {
 	kv.mu.Unlock()
 }
 
-func (kv *KVPaxos) sync(op *Op) {
+func (kv *KVPaxos) visit_db(op *Op) {
+	if op.Op == "get" {
+		val, ok := kv.kvstore[op.Key]
+		if !ok {
+			op.Value = ""
+			kv.replies[op.OpID].(*GetReply).Value = ""
+			kv.replies[op.OpID].(*GetReply).Err = ErrNoKey
+		}else{
+			op.Value = val
+			kv.replies[op.OpID].(*GetReply).Value = val
+			kv.replies[op.OpID].(*GetReply).Err = OK
+		}
+		return
+	}
 
+	if op.Op == "put" {
+		kv.kvstore[op.Key] = op.Value
+		kv.replies[args.OpID].(*PutAppendReply).Err = OK
+		return
+	}
+
+	if op.Op == "append" {
+		val, ok := kv.kvstore[op.Key]
+		if !ok {
+			kv.kvstore[op.Key] = op.Value
+		}else{
+			kv.kvstore[op.Key] += op.Value
+		}
+		kv.replies[args.OpID].(*PutAppendReply).Err = OK
+		return
+	}
+}
+
+func (kv *KVPaxos) sync(op *Op) {
+	agreement_number := kv.px.Max() + 1
+	kv.px.Start(agreement_number, *op)
+	for {
+		fate, value := kv.px.Status(agreement_number)
+		if fate == Decided {
+			// update or look up kvstore
+			kv.visit_db(&value.(Op))
+		}else{
+			time.Sleep(TickInterval)
+		}
+
+	}
+	kv.px.Done(agreement_number)
 }
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
