@@ -78,7 +78,7 @@ func (kv *KVPaxos) access_db(op *Op) {
 	}
 
 	if op.Op == "append" {
-		val, ok := kv.kvstore[op.Key]
+		_, ok := kv.kvstore[op.Key]
 		if !ok {
 			kv.kvstore[op.Key] = op.Value
 		} else {
@@ -93,10 +93,11 @@ func (kv *KVPaxos) sync(op *Op) {
 	agreement_number := kv.px.Max() + 1
 	kv.px.Start(agreement_number, *op)
 	for {
-		fate, value := kv.px.Status(agreement_number)
+		fate, val := kv.px.Status(agreement_number)
 		if fate == paxos.Decided {
 			// update or look up kvstore
-			kv.access_db(&(value.(Op)))
+			xop := val.(Op)
+			kv.access_db(&xop)
 		} else {
 			time.Sleep(TickInterval)
 		}
