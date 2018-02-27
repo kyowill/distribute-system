@@ -48,7 +48,7 @@ type KVPaxos struct {
 	//agreement_number int64                 // paxos instance last agreement number
 }
 
-const TickInterval = 100 * time.Millisecond
+const TickInterval = 1000 * time.Millisecond
 
 func (kv *KVPaxos) Lock() {
 	kv.mu.Lock()
@@ -90,17 +90,25 @@ func (kv *KVPaxos) access_db(op *Op) {
 }
 
 func (kv *KVPaxos) sync(op *Op) {
-	agreement_number := kv.px.Max() + 1
+	agreement_number := kv.px.Min()
 	for {
 		fate, val := kv.px.Status(agreement_number)
-		if fate == paxos.Decided && val != nil {
+		if fate == paxos.Decided {
 			// update or look up kvstore
-			xop := val.(Op)
-			if xop.OpID == op.OpID {
-				kv.access_db(&xop)
-				break
+			if val == nil {
+				fmt.Println("null...")
+			} else {
+				xop := val.(Op)
+				if xop.OpID == op.OpID {
+					kv.access_db(&xop)
+					break
+				}
 			}
+
+			agreement_number += 1
 		} else {
+
+			fmt.Println("pending...")
 			time.Sleep(TickInterval)
 			kv.px.Start(agreement_number, *op)
 		}
