@@ -92,6 +92,7 @@ func (kv *KVPaxos) access_db(op *Op) {
 func (kv *KVPaxos) sync(op *Op) {
 	agreement_number := kv.px.Max() + 1
 	kv.px.Start(agreement_number, *op)
+
 	for {
 		fate, val := kv.px.Status(agreement_number)
 		if fate == paxos.Decided {
