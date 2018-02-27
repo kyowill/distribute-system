@@ -91,15 +91,19 @@ func (kv *KVPaxos) access_db(op *Op) {
 
 func (kv *KVPaxos) sync(op *Op) {
 	agreement_number := kv.px.Max() + 1
-	kv.px.Start(agreement_number, *op)
+
 	for {
 		fate, val := kv.px.Status(agreement_number)
-		if fate == paxos.Decided {
+		if fate == paxos.Decided && val != nil {
 			// update or look up kvstore
 			xop := val.(Op)
-			kv.access_db(&xop)
+			if xop.OpID == op.OpID {
+				kv.access_db(&xop)
+				break
+			}
 		} else {
 			time.Sleep(TickInterval)
+			kv.px.Start(agreement_number, *op)
 		}
 
 	}
