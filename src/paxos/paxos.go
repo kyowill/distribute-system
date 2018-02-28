@@ -336,13 +336,23 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 		if !majority_prepare {
 			continue
 		}
+
+		if !px.still_deciding(agreement_number) {
+			break // if decision has been reached already, stop proposer_role
+		}
 		//accept
-		proposal.Value = highest_proposal.Value
+		if highest_proposal.Number != -1 {
+			proposal.Value = highest_proposal.Value
+		}
 		replies_in_accept := px.broadcast_accept(agreement_number, proposal)
 		majority_accept := px.evaluate_accept_replies(replies_in_accept)
 
 		if !majority_accept {
 			continue
+		}
+
+		if !px.still_deciding(agreement_number) {
+			break // if decision has been reached already, stop proposer_role
 		}
 		//decide
 		px.broadcast_decide(agreement_number, proposal)

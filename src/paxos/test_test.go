@@ -41,6 +41,7 @@ func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
 					t.Fatalf("decided values do not match; seq=%v i=%v v=%v v1=%v",
 						seq, i, v, v1)
 				}
+
 				count++
 				v = v1
 			}
@@ -130,7 +131,6 @@ func TestBasic(t *testing.T) {
 	fmt.Printf("Test: Single proposer ...\n")
 
 	pxa[0].Start(0, "hello")
-	// fmt.Println("666")
 	waitn(t, pxa, 0, npaxos)
 
 	fmt.Printf("  ... Passed\n")
@@ -141,6 +141,11 @@ func TestBasic(t *testing.T) {
 		pxa[i].Start(1, 77)
 	}
 	waitn(t, pxa, 1, npaxos)
+	/*	for i := 0; i < npaxos; i++ {
+		_, v := pxa[i].Status(1)
+		s := v.(int)
+		fmt.Printf("v=%v...\n", s)
+	}*/
 
 	fmt.Printf("  ... Passed\n")
 
