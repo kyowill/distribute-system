@@ -6,10 +6,12 @@ import "strconv"
 import "os"
 import "time"
 import "fmt"
-import "math/rand"
+
+//import "math/rand"
 import crand "crypto/rand"
 import "encoding/base64"
-import "sync/atomic"
+
+//import "sync/atomic"
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -34,9 +36,9 @@ func ndecided(t *testing.T, pxa []*Paxos, seq int) int {
 	var v interface{}
 	for i := 0; i < len(pxa); i++ {
 		if pxa[i] != nil {
-			//fmt.Println(i)
 			decided, v1 := pxa[i].Status(seq)
 			if decided == Decided {
+				fmt.Printf("decided values : seq=%v i=%v v=%v v1=%v ...\n", seq, i, v, v1)
 				if count > 0 && v != v1 {
 					t.Fatalf("decided values do not match; seq=%v i=%v v=%v v1=%v",
 						seq, i, v, v1)
@@ -87,6 +89,7 @@ func cleanup(pxa []*Paxos) {
 	}
 }
 
+/*
 func noTestSpeed(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
@@ -141,11 +144,6 @@ func TestBasic(t *testing.T) {
 		pxa[i].Start(1, 77)
 	}
 	waitn(t, pxa, 1, npaxos)
-	/*	for i := 0; i < npaxos; i++ {
-		_, v := pxa[i].Status(1)
-		s := v.(int)
-		fmt.Printf("v=%v...\n", s)
-	}*/
 
 	fmt.Printf("  ... Passed\n")
 
@@ -669,6 +667,7 @@ func TestOld(t *testing.T) {
 
 	fmt.Printf("  ... Passed\n")
 }
+*/
 
 //
 // many agreements, with unreliable RPC
@@ -761,6 +760,7 @@ func part(t *testing.T, tag string, npaxos int, p1 []int, p2 []int, p3 []int) {
 	}
 }
 
+/*
 func TestPartition(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
@@ -966,3 +966,4 @@ func TestLots(t *testing.T) {
 
 	fmt.Printf("  ... Passed\n")
 }
+*/

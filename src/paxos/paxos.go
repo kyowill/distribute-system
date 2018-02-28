@@ -328,6 +328,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
 		proposal_number = px.next_proposal_number(agreement_number)
+		fmt.Printf("before prepare v=%v, index=%v ...\n", proposal_value, px.me)
 		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
 		replies_in_prepare := px.broadcast_prepare(agreement_number, proposal)
@@ -340,10 +341,12 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 		if !px.still_deciding(agreement_number) {
 			break // if decision has been reached already, stop proposer_role
 		}
+
 		//accept
 		if highest_proposal.Number != -1 {
 			proposal.Value = highest_proposal.Value
 		}
+		fmt.Printf("before accept v= %v, index=%v ...\n", proposal, px.me)
 		replies_in_accept := px.broadcast_accept(agreement_number, proposal)
 		majority_accept := px.evaluate_accept_replies(replies_in_accept)
 
@@ -354,6 +357,8 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 		if !px.still_deciding(agreement_number) {
 			break // if decision has been reached already, stop proposer_role
 		}
+
+		fmt.Printf("decided v=%v, index=%v ...\n", proposal)
 		//decide
 		px.broadcast_decide(agreement_number, proposal)
 	}
@@ -397,6 +402,7 @@ func (px *Paxos) Accept_handler(args *AcceptArgs, reply *AcceptReply) error {
 	}
 
 	if proposal.Number >= px.state[agreement_number].highest_promised {
+		px.state[agreement_number].highest_promised = proposal.Number
 		reply.Accept_ok = true
 		reply.Highest_done = px.done[px.peers[px.me]]
 		px.state[agreement_number].accepted_proposal = proposal
@@ -565,7 +571,8 @@ func (px *Paxos) next_proposal_number(agreement_number int) int {
 	px.mu.Lock()
 	defer px.mu.Unlock()
 
-	var proposal_number = px.state[agreement_number].proposal_number + px.peer_count
+	//var proposal_number = px.state[agreement_number].proposal_number + px.peer_count
+	var proposal_number = px.state[agreement_number].highest_promised + px.peer_count + px.me
 	px.state[agreement_number].proposal_number = proposal_number
 	return proposal_number
 }
