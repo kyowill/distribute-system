@@ -328,7 +328,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
 		proposal_number = px.next_proposal_number(agreement_number)
-		fmt.Printf("before prepare v=%v, index=%v ...\n", proposal_value, px.me)
+		fmt.Printf("prepare_number=%v prepare_value=%v, index=%v ...\n", proposal_number, proposal_value, px.me)
 		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
 		replies_in_prepare := px.broadcast_prepare(agreement_number, proposal)
