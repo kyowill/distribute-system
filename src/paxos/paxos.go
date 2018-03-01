@@ -328,7 +328,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 
 	for px.still_deciding(agreement_number) && (!px.isdead()) {
 		proposal_number = px.next_proposal_number(agreement_number)
-		fmt.Printf("prepare_number=%v prepare_value=%v, index=%v ...\n", proposal_number, proposal_value, px.me)
+		//fmt.Printf("prepare_number=%v prepare_value=%v, index=%v ...\n", proposal_number, proposal_value, px.me)
 		//prepare
 		proposal := Proposal{Number: proposal_number, Value: proposal_value}
 		replies_in_prepare := px.broadcast_prepare(agreement_number, proposal)
@@ -346,7 +346,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 		if highest_proposal.Number != -1 {
 			proposal.Value = highest_proposal.Value
 		}
-		fmt.Printf("before accept v= %v, index=%v ...\n", proposal, px.me)
+		//fmt.Printf("before accept v= %v, index=%v ...\n", proposal, px.me)
 		replies_in_accept := px.broadcast_accept(agreement_number, proposal)
 		majority_accept := px.evaluate_accept_replies(replies_in_accept)
 
@@ -358,7 +358,7 @@ func (px *Paxos) proposer_role(agreement_number int, proposal_value interface{})
 			break // if decision has been reached already, stop proposer_role
 		}
 
-		fmt.Printf("decided v=%v, index=%v ...\n", proposal)
+		//fmt.Printf("decided v=%v, index=%v ...\n", proposal)
 		//decide
 		px.broadcast_decide(agreement_number, proposal)
 	}
@@ -459,12 +459,11 @@ func (px *Paxos) broadcast_prepare(agreement_number int, proposal Proposal) []Pr
 
 func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []AcceptReply {
 	var replies_in_accept []AcceptReply = make([]AcceptReply, px.peer_count)
-	var reply AcceptReply
 	args := &AcceptArgs{}
 	args.Agreement_number = agreement_number
 	args.Proposal = proposal
 	for index, peer := range px.peers {
-
+		var reply AcceptReply
 		if peer == px.peers[px.me] {
 			px.Accept_handler(args, &reply)
 			replies_in_accept[index] = reply
@@ -478,8 +477,6 @@ func (px *Paxos) broadcast_accept(agreement_number int, proposal Proposal) []Acc
 		if ok {
 			replies_in_accept[index] = reply
 			px.update_done_entry(peer, reply.Highest_done)
-		} else {
-			replies_in_accept[index] = AcceptReply{Accept_ok: false, Highest_done: -1}
 		}
 	}
 	return replies_in_accept
