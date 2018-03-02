@@ -90,7 +90,7 @@ func (kv *KVPaxos) access_db(op *Op) {
 }
 
 func (kv *KVPaxos) sync(op *Op) {
-	agreement_number := kv.px.Min()
+	agreement_number := kv.px.Max() + 1
 
 	for {
 		fate, val := kv.px.Status(agreement_number)
