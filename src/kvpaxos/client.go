@@ -4,7 +4,7 @@ import "net/rpc"
 import "crypto/rand"
 import "math/big"
 
-import "fmt"
+// import "fmt"
 
 type Clerk struct {
 	servers []string
@@ -55,7 +55,7 @@ func call(srv string, rpcname string,
 		return true
 	}
 
-	fmt.Println(err)
+	//fmt.Println(err)
 	return false
 }
 
@@ -104,8 +104,8 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 }
 
 func (ck *Clerk) Put(key string, value string) {
-	ck.PutAppend(key, value, "Put")
+	ck.PutAppend(key, value, "put")
 }
 func (ck *Clerk) Append(key string, value string) {
-	ck.PutAppend(key, value, "Append")
+	ck.PutAppend(key, value, "append")
 }

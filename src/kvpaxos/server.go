@@ -45,7 +45,7 @@ type KVPaxos struct {
 	kvstore map[string]string     // store kv pair
 	filters map[int64]bool        // to filter duplicates
 	replies map[int64]interface{} // history replies (key:OpID)
-	//agreement_number int64                 // paxos instance last agreement number
+	seq     int                   // equals to the paxos instance executed agreement number
 }
 
 const TickInterval = 1000 * time.Millisecond
@@ -59,6 +59,8 @@ func (kv *KVPaxos) Unlock() {
 }
 
 func (kv *KVPaxos) access_db(op *Op) {
+
+	kv.filters[op.OpID] = true
 	if op.Op == "get" {
 		val, ok := kv.kvstore[op.Key]
 		if !ok {
@@ -68,13 +70,12 @@ func (kv *KVPaxos) access_db(op *Op) {
 			op.Value = val
 			kv.replies[op.OpID] = GetReply{Err: OK, Value: val}
 		}
-		return
 	}
 
 	if op.Op == "put" {
 		kv.kvstore[op.Key] = op.Value
 		kv.replies[op.OpID] = PutAppendReply{Err: OK}
-		return
+
 	}
 
 	if op.Op == "append" {
@@ -85,32 +86,43 @@ func (kv *KVPaxos) access_db(op *Op) {
 			kv.kvstore[op.Key] += op.Value
 		}
 		kv.replies[op.OpID] = PutAppendReply{Err: OK}
-		return
 	}
+	return
 }
 
 func (kv *KVPaxos) sync(op *Op) {
-	agreement_number := kv.px.Max() + 1
 
+	wait_init := func() time.Duration {
+		return /* (1 + time.Duration(rand.Intn(4))) * */ 10 * time.Millisecond
+	}
+
+	wait := wait_init()
+	seq := kv.seq + 1
 	for {
-		fate, val := kv.px.Status(agreement_number)
+		fate, val := kv.px.Status(seq)
 		if fate == paxos.Decided {
 			// update or look up kvstore
 			xop := val.(Op)
+			kv.access_db(&xop)
+			kv.px.Done(seq)
 			if xop.OpID == op.OpID {
-				kv.access_db(&xop)
 				break
 			}
-			agreement_number += 1
+			seq += 1
+			wait = wait_init()
+		} else if fate == paxos.Pending {
+			kv.px.Start(seq, *op)
+			//fmt.Println("pending...")
+			time.Sleep(wait)
+			if wait < time.Second {
+				wait *= 2
+			}
 		} else {
-
-			fmt.Println("pending...")
-			time.Sleep(TickInterval)
-			kv.px.Start(agreement_number, *op)
+			seq += 1
 		}
 
 	}
-	kv.px.Done(agreement_number)
+	kv.seq = seq
 }
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
@@ -120,8 +132,8 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 
 	_, ok := kv.filters[args.OpID]
 	if ok {
-		reply.Value = kv.replies[args.OpID].(*GetReply).Value
-		reply.Err = kv.replies[args.OpID].(*GetReply).Err
+		reply.Value = kv.replies[args.OpID].(GetReply).Value
+		reply.Err = kv.replies[args.OpID].(GetReply).Err
 		return nil
 	}
 
@@ -129,9 +141,8 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 
 	kv.sync(op)
 
-	reply.Value = kv.replies[args.OpID].(*GetReply).Value
-	reply.Err = kv.replies[args.OpID].(*GetReply).Err
-
+	reply.Value = kv.replies[args.OpID].(GetReply).Value
+	reply.Err = kv.replies[args.OpID].(GetReply).Err
 	return nil
 }
 
@@ -142,7 +153,7 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 
 	_, ok := kv.filters[args.OpID]
 	if ok {
-		reply.Err = kv.replies[args.OpID].(*PutAppendReply).Err
+		reply.Err = kv.replies[args.OpID].(PutAppendReply).Err
 		return nil
 	}
 
@@ -150,7 +161,7 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 
 	kv.sync(op)
 
-	reply.Err = kv.replies[args.OpID].(*PutAppendReply).Err
+	reply.Err = kv.replies[args.OpID].(PutAppendReply).Err
 	return nil
 }
 
