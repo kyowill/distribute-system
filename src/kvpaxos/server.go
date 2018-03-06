@@ -90,39 +90,35 @@ func (kv *KVPaxos) access_db(op *Op) {
 	return
 }
 
-func (kv *KVPaxos) sync(op *Op) {
-
-	wait_init := func() time.Duration {
-		return /* (1 + time.Duration(rand.Intn(4))) * */ 10 * time.Millisecond
-	}
-
-	wait := wait_init()
+func (kv *KVPaxos) sync(limit int) {
 	seq := kv.seq + 1
-	for {
+	for seq <= limit {
 		fate, val := kv.px.Status(seq)
 		if fate == paxos.Decided {
-			// update or look up kvstore
-			xop := val.(Op)
-			kv.access_db(&xop)
+			operation := val.(Op)
+			fmt.Printf("operation=%v ...\n", operation)
+			kv.access_db(&operation)
 			kv.px.Done(seq)
-			if xop.OpID == op.OpID {
-				break
-			}
 			seq += 1
-			wait = wait_init()
-		} else if fate == paxos.Pending {
-			kv.px.Start(seq, *op)
-			//fmt.Println("pending...")
-			time.Sleep(wait)
-			if wait < time.Second {
-				wait *= 2
-			}
-		} else {
-			seq += 1
+			continue
 		}
-
+		time.Sleep(TickInterval)
 	}
-	kv.seq = seq
+	kv.seq = limit
+}
+
+func (kv *KVPaxos) agree_on_order(operation Op) int {
+
+	agreement_number := kv.px.Max() + 1
+	kv.px.Start(agreement_number, operation)
+	for {
+		fate, _ := kv.px.Status(agreement_number)
+
+		if fate == paxos.Decided {
+			return agreement_number
+		}
+		time.Sleep(TickInterval)
+	}
 }
 
 func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
@@ -137,10 +133,13 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 		return nil
 	}
 
-	op := &Op{OpID: args.OpID, Op: "get", Key: args.Key, Value: ""}
+	operation := Op{OpID: args.OpID, Op: "get", Key: args.Key, Value: ""}
 
-	kv.sync(op)
+	sequence := kv.agree_on_order(operation)
 
+	kv.sync(sequence)
+
+	fmt.Printf("get operation=%v ...\n", operation)
 	reply.Value = kv.replies[args.OpID].(GetReply).Value
 	reply.Err = kv.replies[args.OpID].(GetReply).Err
 	return nil
@@ -157,11 +156,11 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 		return nil
 	}
 
-	op := &Op{OpID: args.OpID, Op: args.Op, Key: args.Key, Value: args.Value}
+	operation := Op{OpID: args.OpID, Op: args.Op, Key: args.Key, Value: args.Value}
 
-	kv.sync(op)
+	kv.agree_on_order(operation)
 
-	reply.Err = kv.replies[args.OpID].(PutAppendReply).Err
+	reply.Err = OK
 	return nil
 }
 
