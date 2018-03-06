@@ -96,7 +96,7 @@ func (kv *KVPaxos) sync(limit int) {
 		fate, val := kv.px.Status(seq)
 		if fate == paxos.Decided {
 			operation := val.(Op)
-			fmt.Printf("operation=%v ...\n", operation)
+			fmt.Printf("seq=%v operation=%v ...\n", seq, operation)
 			kv.access_db(&operation)
 			kv.px.Done(seq)
 			seq += 1
@@ -139,7 +139,7 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 
 	kv.sync(sequence)
 
-	fmt.Printf("get operation=%v ...\n", operation)
+	fmt.Printf("get seq=%v,operation=%v \n", sequence, operation)
 	reply.Value = kv.replies[args.OpID].(GetReply).Value
 	reply.Err = kv.replies[args.OpID].(GetReply).Err
 	return nil
@@ -158,8 +158,9 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 
 	operation := Op{OpID: args.OpID, Op: args.Op, Key: args.Key, Value: args.Value}
 
-	kv.agree_on_order(operation)
+	sequence := kv.agree_on_order(operation)
 
+	fmt.Printf("put append seq=%v,operation=%v \n", sequence, operation)
 	reply.Err = OK
 	return nil
 }
