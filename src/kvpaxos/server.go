@@ -48,7 +48,7 @@ type KVPaxos struct {
 	seq     int                   // equals to the paxos instance executed agreement number
 }
 
-const TickInterval = 10 * time.Millisecond
+const TickInterval = 50 * time.Millisecond
 
 func (kv *KVPaxos) Lock() {
 	kv.mu.Lock()
@@ -92,7 +92,10 @@ func (kv *KVPaxos) sync(limit int) {
 		if fate == paxos.Decided {
 			operation := val.(Op)
 			//fmt.Printf("seq=%v operation=%v ...\n", seq, operation)
-			kv.access_db(&operation)
+			_, ok := kv.filters[operation.OpID]
+			if !ok {
+				kv.access_db(&operation)
+			}
 			kv.px.Done(seq)
 			seq += 1
 			continue
@@ -150,7 +153,7 @@ func (kv *KVPaxos) Get(args *GetArgs, reply *GetReply) error {
 		reply.Err = kv.replies[args.OpID].(GetReply).Err
 		return nil
 	}
-	kv.filters[args.OpID] = true
+	//kv.filters[args.OpID] = true
 
 	operation := Op{OpID: args.OpID, Op: "get", Key: args.Key, Value: ""}
 
@@ -175,12 +178,13 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 		reply.Err = OK
 		return nil
 	}
-	kv.filters[args.OpID] = true
+	//kv.filters[args.OpID] = true
 
 	operation := Op{OpID: args.OpID, Op: args.Op, Key: args.Key, Value: args.Value}
 
 	//sequence := kv.agree_on_order(operation)
 	kv.agree_on_order(operation)
+	//kv.px.Done(sequence)
 	//fmt.Printf("put append seq=%v,operation=%v \n", sequence, operation)
 	reply.Err = OK
 	return nil

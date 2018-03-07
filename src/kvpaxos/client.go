@@ -4,7 +4,7 @@ import "net/rpc"
 import "crypto/rand"
 import "math/big"
 
-// import "fmt"
+//import "fmt"
 
 type Clerk struct {
 	servers []string
@@ -68,6 +68,7 @@ func (ck *Clerk) Get(key string) string {
 	// You will have to modify this function.
 	args := &GetArgs{Key: key, OpID: nrand()}
 	var reply GetReply
+	//fmt.Printf("get args = %v ...\n", *args)
 	for {
 		for _, server := range ck.servers {
 			ok := call(server, "KVPaxos.Get", args, &reply)
@@ -92,6 +93,7 @@ func (ck *Clerk) Get(key string) string {
 func (ck *Clerk) PutAppend(key string, value string, op string) {
 	// You will have to modify this function.
 	args := &PutAppendArgs{Key: key, Value: value, Op: op, OpID: nrand()}
+	//fmt.Printf("put append args = %v ...\n", *args)
 	var reply PutAppendReply
 	for {
 		for _, server := range ck.servers {

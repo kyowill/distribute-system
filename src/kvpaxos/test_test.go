@@ -8,6 +8,7 @@ import "time"
 import "fmt"
 import "math/rand"
 import "strings"
+
 import "sync/atomic"
 
 func check(t *testing.T, ck *Clerk, key string, value string) {
@@ -79,7 +80,6 @@ func part(t *testing.T, tag string, npaxos int, p1 []int, p2 []int, p3 []int) {
 	}
 }
 
-/*
 func TestBasic(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
@@ -211,16 +211,16 @@ func TestDone(t *testing.T) {
 
 	runtime.GC()
 
-	// var m1 runtime.MemStats
-	// runtime.ReadMemStats(&m1)
-	// // rtm's m1.Alloc is 45 MB
+	var m1 runtime.MemStats
+	runtime.ReadMemStats(&m1)
+	// rtm's m1.Alloc is 45 MB
 
-	// // fmt.Printf("  Memory: before %v, after %v\n", m0.Alloc, m1.Alloc)
+	fmt.Printf("  Memory: before %v, after %v\n", m0.Alloc, m1.Alloc)
 
-	// allowed := m0.Alloc + uint64(nservers*items*sz*2)
-	// if m1.Alloc > allowed {
-	// 	t.Fatalf("Memory use did not shrink enough (Used: %v, allowed: %v).\n", m1.Alloc, allowed)
-	// }
+	allowed := m0.Alloc + uint64(nservers*items*sz*2)
+	if m1.Alloc > allowed {
+		t.Fatalf("Memory use did not shrink enough (Used: %v, allowed: %v).\n", m1.Alloc, allowed)
+	}
 
 	fmt.Printf("  ... Passed\n")
 }
@@ -327,7 +327,7 @@ func TestPartition(t *testing.T) {
 
 	fmt.Printf("  ... Passed\n")
 }
-*/
+
 func randclerk(kvh []string) *Clerk {
 	sa := make([]string, len(kvh))
 	copy(sa, kvh)
@@ -417,7 +417,7 @@ func TestUnreliable(t *testing.T) {
 				myck.Append(key, "2")
 				vv = NextValue(vv, "2")
 				time.Sleep(100 * time.Millisecond)
-				fmt.Printf("v1=%v, v2=%v ...\n", myck.Get(key), vv)
+				//fmt.Printf("v1=%v, v2=%v ...\n", myck.Get(key), vv)
 				if myck.Get(key) != vv {
 					t.Fatalf("wrong value")
 				}
@@ -616,6 +616,7 @@ func TestManyPartition(t *testing.T) {
 
 	tag := "many"
 	const nservers = 5
+	//const nservers = 3
 	var kva []*KVPaxos = make([]*KVPaxos, nservers)
 	defer cleanup(kva)
 	defer cleanpp(tag, nservers)
@@ -634,7 +635,7 @@ func TestManyPartition(t *testing.T) {
 	}
 	defer part(t, tag, nservers, []int{}, []int{}, []int{})
 	part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
-
+	fmt.Println("1")
 	done := int32(0)
 
 	// re-partition periodically
@@ -655,6 +656,7 @@ func TestManyPartition(t *testing.T) {
 					}
 				}
 			}
+			fmt.Println("2")
 			part(t, tag, nservers, pa[0], pa[1], pa[2])
 			time.Sleep(time.Duration(rand.Int63()%200) * time.Millisecond)
 		}
@@ -700,9 +702,10 @@ func TestManyPartition(t *testing.T) {
 	atomic.StoreInt32(&done, 1)
 	<-ch1
 	part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
-
+	fmt.Println("3")
 	ok := true
 	for i := 0; i < nclients; i++ {
+		fmt.Printf("number of client:%v ...\n", i)
 		z := <-ca[i]
 		ok = ok && z
 	}
