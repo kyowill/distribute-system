@@ -96,6 +96,11 @@ func (kv *KVPaxos) sync(limit int) {
 			kv.px.Done(seq)
 			seq += 1
 			continue
+		} else if fate == paxos.Pending {
+			//fmt.Println("debug...")
+			operation := Op{OpID: 101, Op: "no_op"}
+			kv.px.Start(seq, operation)
+
 		}
 		time.Sleep(TickInterval)
 	}

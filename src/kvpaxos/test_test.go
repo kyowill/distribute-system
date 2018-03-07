@@ -79,6 +79,7 @@ func part(t *testing.T, tag string, npaxos int, p1 []int, p2 []int, p3 []int) {
 	}
 }
 
+/*
 func TestBasic(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
@@ -326,7 +327,7 @@ func TestPartition(t *testing.T) {
 
 	fmt.Printf("  ... Passed\n")
 }
-
+*/
 func randclerk(kvh []string) *Clerk {
 	sa := make([]string, len(kvh))
 	copy(sa, kvh)
@@ -416,6 +417,7 @@ func TestUnreliable(t *testing.T) {
 				myck.Append(key, "2")
 				vv = NextValue(vv, "2")
 				time.Sleep(100 * time.Millisecond)
+				fmt.Printf("v1=%v, v2=%v ...\n", myck.Get(key), vv)
 				if myck.Get(key) != vv {
 					t.Fatalf("wrong value")
 				}
@@ -607,7 +609,6 @@ func TestHole(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-/*
 func TestManyPartition(t *testing.T) {
 	runtime.GOMAXPROCS(4)
 
@@ -710,4 +711,3 @@ func TestManyPartition(t *testing.T) {
 		fmt.Printf("  ... Passed\n")
 	}
 }
-*/
