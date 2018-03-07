@@ -635,7 +635,7 @@ func TestManyPartition(t *testing.T) {
 	}
 	defer part(t, tag, nservers, []int{}, []int{}, []int{})
 	part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
-	fmt.Println("1")
+	//fmt.Println("1")
 	done := int32(0)
 
 	// re-partition periodically
@@ -656,7 +656,7 @@ func TestManyPartition(t *testing.T) {
 					}
 				}
 			}
-			fmt.Println("2")
+			//fmt.Println("2")
 			part(t, tag, nservers, pa[0], pa[1], pa[2])
 			time.Sleep(time.Duration(rand.Int63()%200) * time.Millisecond)
 		}
@@ -702,7 +702,7 @@ func TestManyPartition(t *testing.T) {
 	atomic.StoreInt32(&done, 1)
 	<-ch1
 	part(t, tag, nservers, []int{0, 1, 2, 3, 4}, []int{}, []int{})
-	fmt.Println("3")
+	//fmt.Println("3")
 	ok := true
 	for i := 0; i < nclients; i++ {
 		fmt.Printf("number of client:%v ...\n", i)
