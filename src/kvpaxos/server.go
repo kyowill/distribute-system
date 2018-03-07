@@ -48,7 +48,7 @@ type KVPaxos struct {
 	seq     int                   // equals to the paxos instance executed agreement number
 }
 
-const TickInterval = 50 * time.Millisecond
+//const TickInterval = 100 * time.Millisecond
 
 func (kv *KVPaxos) Lock() {
 	kv.mu.Lock()
@@ -86,6 +86,9 @@ func (kv *KVPaxos) access_db(op *Op) {
 }
 
 func (kv *KVPaxos) sync(limit int) {
+
+	sleep_max := 10 * time.Second
+	sleep_time := 10 * time.Millisecond
 	seq := kv.seq + 1
 	for seq <= limit {
 		fate, val := kv.px.Status(seq)
@@ -100,17 +103,24 @@ func (kv *KVPaxos) sync(limit int) {
 			seq += 1
 			continue
 		} else if fate == paxos.Pending {
-			//fmt.Println("debug...")
 			operation := Op{OpID: 101, Op: "no_op"}
 			kv.px.Start(seq, operation)
 
 		}
-		time.Sleep(TickInterval)
+		time.Sleep(sleep_time)
+		if sleep_time < sleep_max {
+			sleep_time *= 2
+		}
+		//time.Sleep(TickInterval)
 	}
 	kv.seq = limit
 }
 
 func (kv *KVPaxos) agree_on_order(operation Op) int {
+
+	sleep_max := 10 * time.Second
+
+	sleep_time := 10 * time.Millisecond
 
 	agreement_number := kv.next_agreement_number()
 
@@ -134,7 +144,12 @@ func (kv *KVPaxos) agree_on_order(operation Op) int {
 
 		}
 
-		time.Sleep(TickInterval)
+		time.Sleep(sleep_time)
+		if sleep_time < sleep_max {
+			sleep_time *= 2
+		}
+
+		//time.Sleep(TickInterval)
 	}
 }
 
