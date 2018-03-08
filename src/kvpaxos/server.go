@@ -43,12 +43,13 @@ type KVPaxos struct {
 
 	// Your definitions here.
 	kvstore map[string]string     // store kv pair
-	filters map[int64]bool        // to filter duplicates
+	filters map[int64]int         // to filter duplicates
 	replies map[int64]interface{} // history replies (key:OpID)
 	seq     int                   // equals to the paxos instance executed agreement number
 }
 
-//const TickInterval = 100 * time.Millisecond
+const TickInterval = 100 * time.Millisecond
+const ToFilter = 10
 
 func (kv *KVPaxos) Lock() {
 	kv.mu.Lock()
@@ -60,7 +61,7 @@ func (kv *KVPaxos) Unlock() {
 
 func (kv *KVPaxos) access_db(op *Op) {
 
-	kv.filters[op.OpID] = true
+	kv.filters[op.OpID] = ToFilter
 	if op.Op == "get" {
 		val, ok := kv.kvstore[op.Key]
 		if !ok {
@@ -205,6 +206,19 @@ func (kv *KVPaxos) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 	return nil
 }
 
+func (kv *KVPaxos) cleanFilters() {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	for id := range kv.filters {
+		kv.filters[id]--
+		if kv.filters[id] <= 0 {
+			delete(kv.filters, id)
+			delete(kv.replies, id)
+		}
+	}
+}
+
 // tell the server to shut itself down.
 // please do not change these two functions.
 func (kv *KVPaxos) kill() {
@@ -247,7 +261,7 @@ func StartServer(servers []string, me int) *KVPaxos {
 	kv.me = me
 
 	// Your initialization code here.
-	kv.filters = make(map[int64]bool)
+	kv.filters = make(map[int64]int)
 	kv.kvstore = make(map[string]string)
 	kv.replies = make(map[int64]interface{})
 
@@ -292,6 +306,13 @@ func StartServer(servers []string, me int) *KVPaxos {
 				fmt.Printf("KVPaxos(%v) accept: %v\n", me, err.Error())
 				kv.kill()
 			}
+		}
+	}()
+
+	go func() {
+		for kv.isdead() == false {
+			time.Sleep(TickInterval)
+			kv.cleanFilters()
 		}
 	}()
 
