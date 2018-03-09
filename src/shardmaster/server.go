@@ -12,6 +12,16 @@ import "os"
 import "syscall"
 import "encoding/gob"
 import "math/rand"
+import "time"
+import "strconv"
+
+const (
+	Join  = "Join"
+	Leave = "Leave"
+	Move  = "Move"
+	Query = "Query"
+	Noop  = "Noop"
+)
 
 type ShardMaster struct {
 	mu         sync.Mutex
@@ -21,36 +31,181 @@ type ShardMaster struct {
 	unreliable int32 // for testing
 	px         *paxos.Paxos
 
-	configs []Config // indexed by config num
+	configs          []Config // indexed by config num
+	operation_number int      // agreement number of latest applied operation
 }
-
 
 type Op struct {
 	// Your data here.
+	Id   string
+	Name string
+	Args interface{}
 }
 
+func generate_uuid() string {
+	return strconv.Itoa(rand.Int())
+}
+
+func make_op(name string, args interface{}) Op {
+	operation := Op{Id: generate_uuid(), Name: name, Args: args}
+	return operation
+}
+
+func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val interface{}) {
+	sleep_max := 10 * time.Second
+	sleep_time := 10 * time.Millisecond
+	for {
+		has_decided, decided_val := self.px.Status(agreement_number)
+		if has_decided {
+			return decided_val
+		}
+		time.Sleep(sleep_time)
+		if sleep_time < sleep_max {
+			sleep_time *= 2
+		}
+	}
+	panic("unreachable")
+}
+
+func (self *ShardMaster) paxos_agree(operation Op) int {
+	var agreement_number int
+	var decided_operation = Op{}
+
+	for decided_operation.Id != operation.Id {
+		agreement_number = self.available_agreement_number()
+		//fmt.Printf("Proposing %+v with agreement_number:%d\n", operation, agreement_number)
+		self.px.Start(agreement_number, operation)
+		decided_operation = self.await_paxos_decision(agreement_number).(Op) // type assertion
+	}
+	//output_debug(fmt.Sprintf("(server%d) Decided op_num:%d op:%v", self.me, agreement_number, decided_operation))
+	return agreement_number
+}
+
+func (self *ShardMaster) paxos_staus(agreement int) (bool, Op) {
+	fate, val := self.px.Status(agreement)
+	if fate == paxos.Decided && val != nil {
+		operation := val.(Op)
+		return true, operation
+	}
+	return false, Op{}
+}
+
+func (self *ShardMaster) available_agreement_number() int {
+	return self.px.Max() + 1
+}
+
+func (self *ShardMaster) last_operation_number() int {
+	return self.operation_number
+}
+
+func (self *ShardMaster) sync(limit int) {
+	seq := self.last_operation_number() + 1
+
+	for seq < limit {
+		decided, operation := self.paxos_staus(seq)
+		if decided {
+			self.perform_operation(seq, operation)
+			seq = self.last_operation_number() + 1
+		} else {
+			noop := make_op("Noop", Op{})
+			self.px.Start(seq, noop)
+			decided_val := self.await_paxos_decision(seq)
+			operation = decided_val.(Op)
+			self.perform_operation(seq, operation)
+			seq = self.last_operation_number() + 1
+		}
+	}
+}
+
+func (self *ShardMaster) perform_operation(agreement int, operation Op) interface{} {
+	switch operation.Name {
+	case Join:
+		var join_args = (operation.Args).(JoinArgs) // type assertion, Args is a JoinArgs
+		result = self.join(&join_args)
+	case Leave:
+		var leave_args = (operation.Args).(LeaveArgs) // type assertion, Args is a LeaveArgs
+		result = self.leave(&leave_args)
+	case Move:
+		var move_args = (operation.Args).(MoveArgs) // type assertion, Args is a MoveArgs
+		result = self.move(&move_args)
+	case Query:
+		var query_args = (operation.Args).(QueryArgs) // type assertion, Args is a QueryArgs
+		result = self.query(&query_args)
+	case Noop:
+		//
+	default:
+		panic(fmt.Printf("do nothing ... \n"))
+	}
+	self.operation_number = agreement
+	self.px.Done(agreement)
+	return result
+}
 
 func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
 	// Your code here.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	operation := make_op(Join, args)
+	agreement := sm.paxos_agree(operation)
+	sm.sync(agreement)
+	sm.perform_operation(agreement, operation)
+	return nil
+}
 
+func (self *ShardMaster) join(args *JoinArgs) JoinReply {
 	return nil
 }
 
 func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
 	// Your code here.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
+	operation := make_op(Leave, args)
+	agreement := sm.paxos_agree(operation)
+	sm.sync(agreement)
+	sm.perform_operation(agreement, operation)
+	return nil
+}
+
+func (self *ShardMaster) leave(args *LeaveArgs) LeaveReply {
 	return nil
 }
 
 func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
 	// Your code here.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	operation := make_op(Move, args)
+	agreement := sm.paxos_agree(operation)
+	sm.sync(agreement)
+	sm.perform_operation(agreement, operation)
+	return nil
+}
+
+func (self *ShardMaster) move(args *MoveArgs) MoveReply {
 
 	return nil
 }
 
 func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
 	// Your code here.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
+	operation := make_op(Query, args)
+	agreement := sm.paxos_agree(operation)
+	sm.sync(agreement)
+	result := sm.perform_operation(agreement, operation)
+	val, ok := result.(QueryReply)
+	if ok {
+		reply = val
+	}
+	return nil
+}
+
+func (self *ShardMaster) query(args *QueryArgs) QueryReply {
 	return nil
 }
 
