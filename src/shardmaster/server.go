@@ -51,15 +51,13 @@ func make_op(name string, args interface{}) Op {
 	return operation
 }
 
-func copy_config(config *Config) Config {
-	var copy Config
+func copy_config(config *Config, copy *Config) {
 	copy.Num = config.Num
 	copy.Shards = config.Shards
-
+	copy.Groups = map[int64][]string{}
 	for key, value := range config.Groups {
 		copy.Groups[key] = value
 	}
-	return copy
 }
 
 func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val interface{}) {
@@ -190,7 +188,7 @@ func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
 	// Your code here.
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	operation := make_op(Join, args)
+	operation := make_op(Join, *args)
 	agreement := sm.paxos_agree(operation)
 	sm.sync(agreement)
 	sm.perform_operation(agreement, operation)
@@ -198,9 +196,13 @@ func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
 }
 
 func (self *ShardMaster) doJoin(args *JoinArgs) JoinReply {
-	config := copy_config(&self.configs[len(self.configs)-1])
+	config := Config{}
+	//fmt.Printf("len %v ..\n", len(self.configs))
+	copy_config(&self.configs[len(self.configs)-1], &config)
 	_, exist := config.Groups[args.GID]
-	if exist {
+	config.Num += 1
+	if !exist {
+		//config.Num += 1
 		config.Groups[args.GID] = args.Servers
 		rebalance(&config, Join, args.GID)
 	}
@@ -213,7 +215,7 @@ func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	operation := make_op(Leave, args)
+	operation := make_op(Leave, *args)
 	agreement := sm.paxos_agree(operation)
 	sm.sync(agreement)
 	sm.perform_operation(agreement, operation)
@@ -221,9 +223,13 @@ func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
 }
 
 func (self *ShardMaster) doLeave(args *LeaveArgs) LeaveReply {
-	config := copy_config(&self.configs[len(self.configs)-1])
+	//var config Config
+	config := Config{}
+	copy_config(&self.configs[len(self.configs)-1], &config)
 	_, exist := config.Groups[args.GID]
+	config.Num += 1
 	if exist {
+		//config.Num += 1
 		delete(config.Groups, args.GID)
 		rebalance(&config, Leave, args.GID)
 	}
@@ -236,7 +242,7 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	operation := make_op(Move, args)
+	operation := make_op(Move, *args)
 	agreement := sm.paxos_agree(operation)
 	sm.sync(agreement)
 	sm.perform_operation(agreement, operation)
@@ -244,7 +250,10 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
 }
 
 func (self *ShardMaster) doMove(args *MoveArgs) MoveReply {
-	config := copy_config(&self.configs[len(self.configs)-1])
+	//var config Config
+	config := Config{}
+	copy_config(&self.configs[len(self.configs)-1], &config)
+	config.Num += 1
 	config.Shards[args.Shard] = args.GID
 	self.configs = append(self.configs, config)
 	return MoveReply{}
@@ -255,13 +264,14 @@ func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	operation := make_op(Query, args)
+	operation := make_op(Query, *args)
 	agreement := sm.paxos_agree(operation)
 	sm.sync(agreement)
 	result := sm.perform_operation(agreement, operation)
 	val, ok := result.(QueryReply)
 	if ok {
-		reply = &val
+		//fmt.Printf("len %v ...\n", len(val.Config.Groups))
+		copy_config(&(val.Config), &(reply.Config))
 	}
 	return nil
 }
@@ -270,7 +280,11 @@ func (self *ShardMaster) doQuery(args *QueryArgs) QueryReply {
 	if args.Num >= 0 && args.Num < len(self.configs) {
 		return QueryReply{Config: self.configs[args.Num]}
 	}
-	return QueryReply{Config: self.configs[len(self.configs)-1]}
+	//fmt.Printf("len %v ...\n", len(self.configs[len(self.configs)-1].Groups))
+
+	config := Config{}
+	copy_config(&self.configs[len(self.configs)-1], &config)
+	return QueryReply{Config: config}
 }
 
 // please don't change these two functions.
@@ -310,6 +324,12 @@ func StartServer(servers []string, me int) *ShardMaster {
 
 	sm.configs = make([]Config, 1)
 	sm.configs[0].Groups = map[int64][]string{}
+
+	gob.Register(JoinArgs{})
+	gob.Register(LeaveArgs{})
+	gob.Register(MoveArgs{})
+	gob.Register(QueryArgs{})
+	sm.operation_number = -1
 
 	rpcs := rpc.NewServer()
 

@@ -101,7 +101,6 @@ func TestBasic(t *testing.T) {
 
 	cfa := make([]Config, 6)
 	cfa[0] = ck.Query(-1)
-
 	check(t, []int64{}, ck)
 
 	var gid1 int64 = 1
@@ -112,6 +111,7 @@ func TestBasic(t *testing.T) {
 	var gid2 int64 = 2
 	ck.Join(gid2, []string{"a", "b", "c"})
 	check(t, []int64{gid1, gid2}, ck)
+
 	cfa[2] = ck.Query(-1)
 
 	ck.Join(gid2, []string{"a", "b", "c"})
@@ -143,9 +143,11 @@ func TestBasic(t *testing.T) {
 	for i := 0; i < len(cfa); i++ {
 		c := ck.Query(cfa[i].Num)
 		if c.Num != cfa[i].Num {
+			fmt.Printf("c.num:%v, cfa[%v].num:%v ...\n", c.Num, i, cfa[i].Num)
 			t.Fatalf("historical Num wrong")
 		}
 		if c.Shards != cfa[i].Shards {
+			fmt.Printf("c.shards:%v, cfa[%v].shards:%v ...\n", c.Shards, i, cfa[i].Shards)
 			t.Fatalf("historical Shards wrong")
 		}
 		if len(c.Groups) != len(cfa[i].Groups) {
