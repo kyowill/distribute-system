@@ -51,12 +51,23 @@ func make_op(name string, args interface{}) Op {
 	return operation
 }
 
+func copy_config(config *Config) Config {
+	var copy Config
+	copy.Num = config.Num
+	copy.Shards = config.Shards
+
+	for key, value := range config.Groups {
+		copy.Groups[key] = value
+	}
+	return copy
+}
+
 func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val interface{}) {
 	sleep_max := 10 * time.Second
 	sleep_time := 10 * time.Millisecond
 	for {
 		has_decided, decided_val := self.px.Status(agreement_number)
-		if has_decided {
+		if has_decided == paxos.Decided {
 			return decided_val
 		}
 		time.Sleep(sleep_time)
@@ -118,27 +129,61 @@ func (self *ShardMaster) sync(limit int) {
 }
 
 func (self *ShardMaster) perform_operation(agreement int, operation Op) interface{} {
+	var result interface{}
 	switch operation.Name {
 	case Join:
 		var join_args = (operation.Args).(JoinArgs) // type assertion, Args is a JoinArgs
-		result = self.join(&join_args)
+		result = self.doJoin(&join_args)
 	case Leave:
 		var leave_args = (operation.Args).(LeaveArgs) // type assertion, Args is a LeaveArgs
-		result = self.leave(&leave_args)
+		result = self.doLeave(&leave_args)
 	case Move:
 		var move_args = (operation.Args).(MoveArgs) // type assertion, Args is a MoveArgs
-		result = self.move(&move_args)
+		result = self.doMove(&move_args)
 	case Query:
 		var query_args = (operation.Args).(QueryArgs) // type assertion, Args is a QueryArgs
-		result = self.query(&query_args)
+		result = self.doQuery(&query_args)
 	case Noop:
 		//
 	default:
-		panic(fmt.Printf("do nothing ... \n"))
+		fmt.Printf("do nothing ... \n")
 	}
 	self.operation_number = agreement
 	self.px.Done(agreement)
 	return result
+}
+
+func rebalance(config *Config, op string, gid int64) {
+	count_map := map[int64]int{}
+	shard_map := map[int64][]int{}
+	for shard, xgid := range config.Shards {
+		count_map[xgid] += 1
+		shard_map[xgid] = append(shard_map[xgid], shard)
+	}
+	max_nshards, max_gid := 0, int64(0)
+	min_nshards, min_gid := NShards+1, int64(0)
+	for xgid := range config.Groups {
+		nshards := count_map[xgid]
+
+		if max_nshards < nshards {
+			max_nshards, max_gid = nshards, xgid
+		}
+		if min_nshards > nshards {
+			min_nshards, min_gid = nshards, xgid
+		}
+	}
+
+	if op == Join {
+		spg := NShards / len(config.Groups)
+		for i := 0; i < spg; i++ {
+			shard := shard_map[max_gid][i]
+			config.Shards[shard] = gid
+		}
+	} else if op == Leave {
+		for _, shard := range shard_map[gid] {
+			config.Shards[shard] = min_gid
+		}
+	}
 }
 
 func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
@@ -152,8 +197,15 @@ func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) error {
 	return nil
 }
 
-func (self *ShardMaster) join(args *JoinArgs) JoinReply {
-	return nil
+func (self *ShardMaster) doJoin(args *JoinArgs) JoinReply {
+	config := copy_config(&self.configs[len(self.configs)-1])
+	_, exist := config.Groups[args.GID]
+	if exist {
+		config.Groups[args.GID] = args.Servers
+		rebalance(&config, Join, args.GID)
+	}
+	self.configs = append(self.configs, config)
+	return JoinReply{}
 }
 
 func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
@@ -168,8 +220,15 @@ func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) error {
 	return nil
 }
 
-func (self *ShardMaster) leave(args *LeaveArgs) LeaveReply {
-	return nil
+func (self *ShardMaster) doLeave(args *LeaveArgs) LeaveReply {
+	config := copy_config(&self.configs[len(self.configs)-1])
+	_, exist := config.Groups[args.GID]
+	if exist {
+		delete(config.Groups, args.GID)
+		rebalance(&config, Leave, args.GID)
+	}
+	self.configs = append(self.configs, config)
+	return LeaveReply{}
 }
 
 func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
@@ -184,9 +243,11 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) error {
 	return nil
 }
 
-func (self *ShardMaster) move(args *MoveArgs) MoveReply {
-
-	return nil
+func (self *ShardMaster) doMove(args *MoveArgs) MoveReply {
+	config := copy_config(&self.configs[len(self.configs)-1])
+	config.Shards[args.Shard] = args.GID
+	self.configs = append(self.configs, config)
+	return MoveReply{}
 }
 
 func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
@@ -200,13 +261,16 @@ func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) error {
 	result := sm.perform_operation(agreement, operation)
 	val, ok := result.(QueryReply)
 	if ok {
-		reply = val
+		reply = &val
 	}
 	return nil
 }
 
-func (self *ShardMaster) query(args *QueryArgs) QueryReply {
-	return nil
+func (self *ShardMaster) doQuery(args *QueryArgs) QueryReply {
+	if args.Num >= 0 && args.Num < len(self.configs) {
+		return QueryReply{Config: self.configs[args.Num]}
+	}
+	return QueryReply{Config: self.configs[len(self.configs)-1]}
 }
 
 // please don't change these two functions.
