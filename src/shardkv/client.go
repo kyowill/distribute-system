@@ -22,6 +22,10 @@ func nrand() int64 {
 	return x
 }
 
+func get_request_id() int64 {
+	return nrand()
+}
+
 func MakeClerk(shardmasters []string) *Clerk {
 	ck := new(Clerk)
 	ck.sm = shardmaster.MakeClerk(shardmasters)
