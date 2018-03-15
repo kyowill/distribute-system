@@ -25,6 +25,9 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 type Op struct {
 	// Your definitions here.
+	Id   int64
+	Name string
+	Args interface{}
 }
 
 type ShardKV struct {
@@ -39,6 +42,97 @@ type ShardKV struct {
 	gid int64 // my replica group ID
 
 	// Your definitions here.
+}
+
+func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val interface{}) {
+	sleep_max := 10 * time.Second
+	sleep_time := 10 * time.Millisecond
+	for {
+		has_decided, decided_val := self.px.Status(agreement_number)
+		if has_decided == paxos.Decided {
+			return decided_val
+		}
+		time.Sleep(sleep_time)
+		if sleep_time < sleep_max {
+			sleep_time *= 2
+		}
+	}
+	panic("unreachable")
+}
+
+func (self *ShardMaster) paxos_agree(operation Op) int {
+	var agreement_number int
+	var decided_operation = Op{}
+
+	for decided_operation.Id != operation.Id {
+		agreement_number = self.available_agreement_number()
+		//fmt.Printf("Proposing %+v with agreement_number:%d\n", operation, agreement_number)
+		self.px.Start(agreement_number, operation)
+		decided_operation = self.await_paxos_decision(agreement_number).(Op) // type assertion
+	}
+	//output_debug(fmt.Sprintf("(server%d) Decided op_num:%d op:%v", self.me, agreement_number, decided_operation))
+	return agreement_number
+}
+
+func (self *ShardMaster) paxos_staus(agreement int) (bool, Op) {
+	fate, val := self.px.Status(agreement)
+	if fate == paxos.Decided && val != nil {
+		operation := val.(Op)
+		return true, operation
+	}
+	return false, Op{}
+}
+
+func (self *ShardKV) available_agreement_number() int {
+	return self.px.Max() + 1
+}
+
+func (self *ShardKV) last_operation_number() int {
+	return self.operation_number
+}
+
+func (self *ShardKV) sync(limit int) {
+	seq := self.last_operation_number() + 1
+
+	for seq < limit {
+		decided, operation := self.paxos_staus(seq)
+		if decided {
+			self.perform_operation(seq, operation)
+			seq = self.last_operation_number() + 1
+		} else {
+			noop := make_op("Noop", Op{})
+			self.px.Start(seq, noop)
+			decided_val := self.await_paxos_decision(seq)
+			operation = decided_val.(Op)
+			self.perform_operation(seq, operation)
+			seq = self.last_operation_number() + 1
+		}
+	}
+}
+
+func (self *ShardKV) perform_operation(agreement int, operation Op) interface{} {
+	var result interface{}
+	switch operation.Name {
+	case Join:
+		var join_args = (operation.Args).(JoinArgs) // type assertion, Args is a JoinArgs
+		result = self.doGet(&join_args)
+	case Leave:
+		var leave_args = (operation.Args).(LeaveArgs) // type assertion, Args is a LeaveArgs
+		result = self.doPutAppend(&leave_args)
+	case Move:
+		var move_args = (operation.Args).(MoveArgs) // type assertion, Args is a MoveArgs
+		result = self.doMove(&move_args)
+	case Query:
+		var query_args = (operation.Args).(QueryArgs) // type assertion, Args is a QueryArgs
+		result = self.doQuery(&query_args)
+	case Noop:
+		//
+	default:
+		fmt.Printf("do nothing ... \n")
+	}
+	self.operation_number = agreement
+	self.px.Done(agreement)
+	return result
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
