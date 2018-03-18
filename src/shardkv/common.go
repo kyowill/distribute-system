@@ -42,3 +42,22 @@ type GetReply struct {
 	Err   Err
 	Value string
 }
+
+type ReceiveShardReply struct {
+	Err Err
+}
+
+type ReceiveShardArgs struct {
+	Kvpairs     []KVPair // slice of Key/Value pairs
+	Trans_to    int      // config number the sender is transitioning to
+	Shard_index int      // index of shard being sent
+}
+
+type SentShardArgs struct {
+	Trans_to    int // config number the sender is transitioning to
+	Shard_index int // index of shard that was successfully sent
+}
+
+type SentShardReply struct {
+	Err Err
+}

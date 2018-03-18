@@ -42,9 +42,23 @@ type ShardKV struct {
 	gid int64 // my replica group ID
 
 	// Your definitions here.
+	transition_to    int
+	operation_number int // agreement number of latest applied operation
+	config_now       shardmaster.Config
+	storage          map[string]string      // key/value data storage
+	cache            map[string]interface{} // "request_id" -> reply cache
 }
 
-func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val interface{}) {
+const (
+	Get          = "Get"
+	Put          = "Put"
+	Append       = "Append"
+	ReceiveShard = "ReceiveShard"
+	SentShard    = "SentShard"
+	Noop         = "Noop"
+)
+
+func (self *ShardKV) await_paxos_decision(agreement_number int) (decided_val interface{}) {
 	sleep_max := 10 * time.Second
 	sleep_time := 10 * time.Millisecond
 	for {
@@ -60,7 +74,7 @@ func (self *ShardMaster) await_paxos_decision(agreement_number int) (decided_val
 	panic("unreachable")
 }
 
-func (self *ShardMaster) paxos_agree(operation Op) int {
+func (self *ShardKV) paxos_agree(operation Op) int {
 	var agreement_number int
 	var decided_operation = Op{}
 
@@ -74,7 +88,7 @@ func (self *ShardMaster) paxos_agree(operation Op) int {
 	return agreement_number
 }
 
-func (self *ShardMaster) paxos_staus(agreement int) (bool, Op) {
+func (self *ShardKV) paxos_staus(agreement int) (bool, Op) {
 	fate, val := self.px.Status(agreement)
 	if fate == paxos.Decided && val != nil {
 		operation := val.(Op)
@@ -113,18 +127,21 @@ func (self *ShardKV) sync(limit int) {
 func (self *ShardKV) perform_operation(agreement int, operation Op) interface{} {
 	var result interface{}
 	switch operation.Name {
-	case Join:
-		var join_args = (operation.Args).(JoinArgs) // type assertion, Args is a JoinArgs
-		result = self.doGet(&join_args)
-	case Leave:
-		var leave_args = (operation.Args).(LeaveArgs) // type assertion, Args is a LeaveArgs
-		result = self.doPutAppend(&leave_args)
-	case Move:
-		var move_args = (operation.Args).(MoveArgs) // type assertion, Args is a MoveArgs
-		result = self.doMove(&move_args)
-	case Query:
-		var query_args = (operation.Args).(QueryArgs) // type assertion, Args is a QueryArgs
-		result = self.doQuery(&query_args)
+	case Get:
+		var get_args = (operation.Args).(GetArgs)
+		result = self.doGet(&get_args)
+	case Put:
+		var put_append_args = (operation.Args).(PutAppendArgs)
+		result = self.doPut(&put_append_args)
+	case Append:
+		var put_append_args = (operation.Args).(PutAppendArgs)
+		result = self.doAppend(&put_append_args)
+	case ReceiveShard:
+		var receive_shard_args = (operation.Args).(ReceiveShardArgs)
+		result = self.doReceiveShard(&receive_shard_args)
+	case SentShard:
+		var sent_shard_args = (operation.Args).(SentShardArgs)
+		result = self.doSentShard(&sent_shard_args)
 	case Noop:
 		//
 	default:
@@ -135,15 +152,103 @@ func (self *ShardKV) perform_operation(agreement int, operation Op) interface{} 
 	return result
 }
 
+func make_op(name string, args interface{}) Op {
+	operation := Op{Id: generate_uuid(), Name: name, Args: args}
+	return operation
+}
+
+// RPC handler for client Get requests
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) error {
 	// Your code here.
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
+	if kv.config_now.Num == 0 {
+		return nil
+	}
+	operation := make_op(Get, args)
+	agreement := kv.paxos_agree(operation)
+	kv.sync(agreement)
+	result := kv.perform_operation(agreement, operation)
+	get_reply := result.(GetReply)
+	reply.Err = get_reply.Err
+	reply.Value = get_reply.Value
 	return nil
+}
+
+func (kv *ShardKV) doGet(args *GetArgs) GetReply {
+
+	shard_index := key2shard(args.Key)
+	var reply GetReply
+	if kv.gid != kv.config_now.Shards[shard_index] {
+		reply.Err = ErrWrongGroup
+		reply.Value = ""
+		return reply
+	}
+
 }
 
 // RPC handler for client Put and Append requests
 func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 	// Your code here.
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	if kv.config_now.Num == 0 {
+		return nil
+	}
+	operation := make_op(args.Op, args)
+	agreement := kv.paxos_agree(operation)
+	kv.sync(agreement)
+	result := kv.perform_operation(agreement, operation)
+	put_append_reply := result.(PutAppendReply)
+	reply.Err = put_append_reply.Err
 	return nil
+}
+
+func (kv *ShardKV) doPut(args *PutAppendArgs) PutAppendReply {
+
+}
+
+func (kv *ShardKV) doAppend(args *PutAppendArgs) PutAppendReply {
+
+}
+
+func (kv *ShardKV) ReceiveShard(args *ReceiveShardArgs, reply *ReceiveShardReply) error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	if kv.config_now.Num == 0 {
+		return nil
+	}
+	operation := make_op(ReceiveShard, args)
+	agreement := kv.paxos_agree(operation)
+	kv.sync(agreement)
+	result := kv.perform_operation(agreement, operation)
+	receive_shard_reply := result.(ReceiveShardReply)
+	reply.Err = receive_shard_reply.Err
+	return nil
+}
+
+func (kv *ShardKV) doRceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
+
+}
+
+func (kv *ShardKV) SentShard(args *SentShardArgs, reply *SentShardReply) error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	if kv.config_now.Num == 0 {
+		return nil
+	}
+	operation := make_op(SentShard, args)
+	agreement := kv.paxos_agree(operation)
+	kv.sync(agreement)
+	result := kv.perform_operation(agreement, operation)
+	sent_shard_reply := result.(SentShardReply)
+	reply.Err = sent_shard_reply.Err
+	return nil
+}
+
+func (kv *ShardKV) doSentShard(args *SentShardArgs) SentShardReply {
+
 }
 
 //
@@ -151,6 +256,9 @@ func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 // if so, re-configure.
 //
 func (kv *ShardKV) tick() {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
 }
 
 // tell the server to shut itself down.
