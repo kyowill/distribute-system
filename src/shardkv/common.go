@@ -28,6 +28,10 @@ type PutAppendArgs struct {
 	Id int64
 }
 
+type ReConfigStartArgs struct{}
+type ReConfigEndArgs struct{}
+type Reply interface{}
+
 type PutAppendReply struct {
 	Err Err
 }

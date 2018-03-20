@@ -50,12 +50,14 @@ type ShardKV struct {
 }
 
 const (
-	Get          = "Get"
-	Put          = "Put"
-	Append       = "Append"
-	ReceiveShard = "ReceiveShard"
-	SentShard    = "SentShard"
-	Noop         = "Noop"
+	Get           = "Get"
+	Put           = "Put"
+	Append        = "Append"
+	ReceiveShard  = "ReceiveShard"
+	SentShard     = "SentShard"
+	ReconfigStart = "ReconfigStart"
+	ReconfigEnd   = "ReconfigEnd"
+	Noop          = "Noop"
 )
 
 func (self *ShardKV) await_paxos_decision(agreement_number int) (decided_val interface{}) {
@@ -142,6 +144,12 @@ func (self *ShardKV) perform_operation(agreement int, operation Op) interface{} 
 	case SentShard:
 		var sent_shard_args = (operation.Args).(SentShardArgs)
 		result = self.doSentShard(&sent_shard_args)
+	case ReconfigStart:
+		var reconfig_start_args = (operation.Args).(ReconfigStart)
+		result = self.doReconfigStart(&reconfig_start_args)
+	case ReconfigEnd:
+		var reconfig_end_args = (operation.Args).(ReconfigEnd)
+		result = self.doReconfigEnd(&reconfig_end_args)
 	case Noop:
 		//
 	default:
@@ -251,6 +259,24 @@ func (kv *ShardKV) doSentShard(args *SentShardArgs) SentShardReply {
 
 }
 
+func (kv *ShardKV) doReconfigStart(args *ReConfigStartArgs) Reply {
+
+	config_next := kv.sm.Query(kv.config_now.Num + 1)
+	//config_prior :=
+}
+
+func (kv *ShardKV) doReconfigEnd(args *ReConfigEndArgs) Reply {
+
+}
+
+func (kv *ShardKV) ensure_updated() {
+	noop := makeOp(Noop, Op{})               // requested Op
+	agreement_number := kv.paxos_agree(noop) // sync call returns after agreement reached
+
+	kv.sync(agreement_number)                    // sync call, operations up to limit performed
+	kv.perform_operation(agreement_number, noop) // perform requested Op
+}
+
 //
 // Ask the shardmaster if there's a new configuration;
 // if so, re-configure.
@@ -258,7 +284,19 @@ func (kv *ShardKV) doSentShard(args *SentShardArgs) SentShardReply {
 func (kv *ShardKV) tick() {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
+	kv.ensure_updated()
 
+	if kv.transition_to == -1 {
+		config_latest := kv.sm.Query(-1)
+		if config_latest.Num > kv.config_now.Num {
+			operation := make_op(ReconfigStart, ReceiveShardArgs{})
+			agreement_number := kv.paxos_agree(operation)
+			kv.sync(agreement_number)
+			kv.perform_operation(agreement_number, operation)
+		}
+	} else {
+
+	}
 }
 
 // tell the server to shut itself down.
