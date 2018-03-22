@@ -47,6 +47,7 @@ type ShardKV struct {
 	config_now       shardmaster.Config
 	storage          map[string]string      // key/value data storage
 	cache            map[string]interface{} // "request_id" -> reply cache
+	shards           map[int]bool           // shards in charge
 }
 
 const (
@@ -194,6 +195,20 @@ func (kv *ShardKV) doGet(args *GetArgs) GetReply {
 		return reply
 	}
 
+	if !kv.shards[kv.gid] {
+		reply.Err = ErrNotReady
+		reply.Value = ""
+		return reply
+	}
+
+	value, present := kv.storage[args.Key]
+	if present {
+		reply.Value = value
+	} else {
+		reply.Err = ErrNoKey
+	}
+
+	return reply
 }
 
 // RPC handler for client Put and Append requests
@@ -214,11 +229,44 @@ func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 }
 
 func (kv *ShardKV) doPut(args *PutAppendArgs) PutAppendReply {
+	shard_index := key2shard(args.Key)
+	var reply PutAppendReply
+	if kv.gid != kv.config_now.Shards[shard_index] {
+		reply.Err = ErrWrongGroup
+		return reply
+	}
 
+	if !kv.shards[kv.gid] {
+		reply.Err = ErrNotReady
+		return reply
+	}
+
+	kv.storage[args.Key] = args.Value
+	reply.Err = OK
+	return reply
 }
 
 func (kv *ShardKV) doAppend(args *PutAppendArgs) PutAppendReply {
+	shard_index := key2shard(args.Key)
+	var reply PutAppendReply
+	if kv.gid != kv.config_now.Shards[shard_index] {
+		reply.Err = ErrWrongGroup
+		return reply
+	}
 
+	if !kv.shards[kv.gid] {
+		reply.Err = ErrNotReady
+		return reply
+	}
+
+	value, present := kv.storage[args.Key]
+	if present {
+		value += args.Value
+	} else {
+		kv.storage[args.Key] = args.Value
+	}
+	reply.Err = OK
+	return reply
 }
 
 func (kv *ShardKV) ReceiveShard(args *ReceiveShardArgs, reply *ReceiveShardReply) error {
@@ -262,6 +310,8 @@ func (kv *ShardKV) doSentShard(args *SentShardArgs) SentShardReply {
 func (kv *ShardKV) doReconfigStart(args *ReConfigStartArgs) Reply {
 
 	config_next := kv.sm.Query(kv.config_now.Num + 1)
+	kv.config_now = config_next
+	//shards :=
 	//config_prior :=
 }
 
