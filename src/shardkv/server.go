@@ -285,7 +285,9 @@ func (kv *ShardKV) ReceiveShard(args *ReceiveShardArgs, reply *ReceiveShardReply
 }
 
 func (kv *ShardKV) doRceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
+	if kv.transition_to > kv.config_now.Num {
 
+	}
 }
 
 func (kv *ShardKV) SentShard(args *SentShardArgs, reply *SentShardReply) error {
