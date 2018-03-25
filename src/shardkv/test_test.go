@@ -130,10 +130,14 @@ func TestBasic(t *testing.T) {
 	ck := tc.clerk()
 
 	ck.Put("a", "x")
+	fmt.Printf("xxxx\n")
 	ck.Append("a", "b")
+	fmt.Printf("bbbb\n")
 	if ck.Get("a") != "xb" {
+		fmt.Printf(".....val = %v \n", ck.Get("a"))
 		t.Fatalf("Get got wrong value")
 	}
+	fmt.Println("locked")
 
 	keys := make([]string, 10)
 	vals := make([]string, len(keys))
