@@ -244,10 +244,12 @@ func (kv *ShardKV) doGet(args *GetArgs) GetReply {
 		return reply
 	}
 
-	value, present := kv.storage[args.Key]
-	if present {
+	value, ok := kv.storage[args.Key]
+	if ok {
 		reply.Value = value
+		reply.Err = OK
 	} else {
+		reply.Value = ""
 		reply.Err = ErrNoKey
 	}
 
@@ -316,9 +318,9 @@ func (kv *ShardKV) doAppend(args *PutAppendArgs) PutAppendReply {
 		return reply
 	}
 
-	value, present := kv.storage[args.Key]
-	if present {
-		value += args.Value
+	_, ok := kv.storage[args.Key]
+	if ok {
+		kv.storage[args.Key] += args.Value
 	} else {
 		kv.storage[args.Key] = args.Value
 	}
@@ -482,10 +484,8 @@ func (kv *ShardKV) tick() {
 
 	if kv.transition_to == -1 {
 		if kv.config_now.Num == 0 {
-			conf := kv.sm.Query(0)
-			fmt.Printf("config0 num= %v \n", conf.Num)
+			// conf := kv.sm.Query(0)
 			config := kv.sm.Query(1)
-			fmt.Printf("config1 num= %v \n", config.Num)
 			if config.Num == 1 {
 				kv.config_prior = kv.config_now
 				kv.config_now = config
