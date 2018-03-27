@@ -358,11 +358,11 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 		return reply
 	}
 
-	/*	if args.Trans_to < kv.transition_to {
+	if args.Trans_to < kv.transition_to {
 		reply.Err = OK
 		kv.cache[client_request] = reply
 		return reply
-	}*/
+	}
 
 	for _, pair := range args.Kvpairs {
 		kv.storage[pair.Key] = pair.Value
