@@ -353,11 +353,16 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 	}
 
 	var reply ReceiveShardReply
-	if args.Trans_to != kv.transition_to {
+	if args.Trans_to > kv.transition_to {
 		reply.Err = ErrNotReady
+		return reply
 	}
 
-	// to do save cache
+	/*	if args.Trans_to < kv.transition_to {
+		reply.Err = OK
+		kv.cache[client_request] = reply
+		return reply
+	}*/
 
 	for _, pair := range args.Kvpairs {
 		kv.storage[pair.Key] = pair.Value
@@ -419,6 +424,7 @@ func (kv *ShardKV) broadcast_shards() {
 			kv.send_shard(shard_index, gid)
 		}
 	}
+	fmt.Println("broadcast finished")
 }
 
 func (kv *ShardKV) send_shard(shard_index int, gid int64) {
@@ -446,6 +452,7 @@ func (kv *ShardKV) send_shard(shard_index int, gid int64) {
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
+			fmt.Println("sent finished")
 			return
 		}
 	}
