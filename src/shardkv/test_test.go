@@ -130,9 +130,9 @@ func TestBasic(t *testing.T) {
 	ck := tc.clerk()
 
 	ck.Put("a", "x")
-	fmt.Printf("a...v=%v\n", ck.Get("a"))
+	//fmt.Printf("a...v=%v\n", ck.Get("a"))
 	ck.Append("a", "b")
-	fmt.Printf("a...v=%v\n", ck.Get("a"))
+	//fmt.Printf("a...v=%v\n", ck.Get("a"))
 	if ck.Get("a") != "xb" {
 		fmt.Printf(".....val = %v \n", ck.Get("a"))
 		t.Fatalf("Get got wrong value")
@@ -152,7 +152,9 @@ func TestBasic(t *testing.T) {
 		tc.join(g)
 		time.Sleep(1 * time.Second)
 		for i := 0; i < len(keys); i++ {
+			fmt.Printf("before get...v=%v\n", keys[i])
 			v := ck.Get(keys[i])
+			fmt.Printf("after get...v=%v\n", v)
 			if v != vals[i] {
 				t.Fatalf("joining; wrong value; g=%v k=%v wanted=%v got=%v",
 					g, keys[i], vals[i], v)

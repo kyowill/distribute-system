@@ -424,7 +424,7 @@ func (kv *ShardKV) broadcast_shards() {
 			kv.send_shard(shard_index, gid)
 		}
 	}
-	fmt.Println("broadcast finished")
+	//fmt.Println("broadcast finished")
 }
 
 func (kv *ShardKV) send_shard(shard_index int, gid int64) {
@@ -452,7 +452,7 @@ func (kv *ShardKV) send_shard(shard_index int, gid int64) {
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
-			fmt.Println("sent finished")
+			//fmt.Println("sent finished")
 			return
 		}
 	}
@@ -518,6 +518,7 @@ func (kv *ShardKV) tick() {
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
+			//fmt.Println("reconfig end")
 		}
 	}
 	return
