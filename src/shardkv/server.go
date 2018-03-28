@@ -421,10 +421,10 @@ func (kv *ShardKV) ensure_updated() {
 func (kv *ShardKV) broadcast_shards() {
 	for shard_index, gid := range kv.config_now.Shards {
 		if (kv.shards[shard_index]) && (gid != kv.gid) {
+			//fmt.Printf("shard=%v, group=%v \n", shard_index, gid)
 			kv.send_shard(shard_index, gid)
 		}
 	}
-	//fmt.Println("broadcast finished")
 }
 
 func (kv *ShardKV) send_shard(shard_index int, gid int64) {
@@ -443,7 +443,7 @@ func (kv *ShardKV) send_shard(shard_index int, gid int64) {
 		args.Trans_to = kv.transition_to
 		var reply ReceiveShardReply
 		ok := call(srv, "ShardKV.ReceiveShard", args, &reply)
-
+		//fmt.Printf("server=%v, shard=%v, reply=%v \n", srv, args.Shard_index, reply)
 		if ok && (reply.Err == OK) {
 			sent_shard_args := SentShardArgs{}
 			sent_shard_args.Shard_index = shard_index
@@ -452,7 +452,7 @@ func (kv *ShardKV) send_shard(shard_index int, gid int64) {
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
-			//fmt.Println("sent finished")
+			//fmt.Printf("server = %v is ok \n", srv)
 			return
 		}
 	}
