@@ -349,27 +349,29 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 	client_request := internal_request_identifier(args.Trans_to, args.Shard_index)
 	val, present := kv.cache[client_request]
 	if present {
+		fmt.Printf("receive cache shard index=%v, reply=%v, sender_trains=%v, self_trains=%v \n", args.Shard_index, val.(ReceiveShardReply), args.Trans_to, kv.transition_to)
 		return val.(ReceiveShardReply)
 	}
 
 	var reply ReceiveShardReply
 	if args.Trans_to > kv.transition_to {
 		reply.Err = ErrNotReady
-		return reply
-	}
-
-	if args.Trans_to < kv.transition_to {
+		//return reply
+	} else if args.Trans_to < kv.transition_to {
+		//fmt.Printf("sender trans=%v, receiver trans=%v \n", args.Trans_to, kv.transition_to)
 		reply.Err = OK
 		kv.cache[client_request] = reply
-		return reply
-	}
+		//return reply
+	} else {
 
-	for _, pair := range args.Kvpairs {
-		kv.storage[pair.Key] = pair.Value
+		for _, pair := range args.Kvpairs {
+			kv.storage[pair.Key] = pair.Value
+		}
+		kv.shards[args.Shard_index] = true
+		reply.Err = OK
+		kv.cache[client_request] = reply
 	}
-	kv.shards[args.Shard_index] = true
-	reply.Err = OK
-	kv.cache[client_request] = reply
+	fmt.Printf("receive shard index=%v, reply=%v, sender_trains=%v, self_trains=%v \n", args.Shard_index, reply, args.Trans_to, kv.transition_to)
 	return reply
 }
 
