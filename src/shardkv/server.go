@@ -239,6 +239,7 @@ func (kv *ShardKV) doGet(args *GetArgs) GetReply {
 	}
 
 	if !kv.shards[shard_index] {
+		fmt.Printf("shard = %v not ready \n", shard_index)
 		reply.Err = ErrNotReady
 		reply.Value = ""
 		return reply
@@ -371,7 +372,7 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 		reply.Err = OK
 		kv.cache[client_request] = reply
 	}
-	fmt.Printf("receive shard index=%v, reply=%v, sender_trains=%v, self_trains=%v \n", args.Shard_index, reply, args.Trans_to, kv.transition_to)
+	//fmt.Printf("receive shard index=%v, reply=%v, sender_trains=%v, self_trains=%v \n", args.Shard_index, reply, args.Trans_to, kv.transition_to)
 	return reply
 }
 
@@ -422,6 +423,9 @@ func (kv *ShardKV) ensure_updated() {
 
 func (kv *ShardKV) broadcast_shards() {
 	for shard_index, gid := range kv.config_now.Shards {
+		// if shard_index == 2 {
+		// 	fmt.Printf("shard=%v, group=%v, old group=%v \n", kv.shards[shard_index], gid, kv.gid)
+		// }
 		if (kv.shards[shard_index]) && (gid != kv.gid) {
 			//fmt.Printf("shard=%v, group=%v \n", shard_index, gid)
 			kv.send_shard(shard_index, gid)

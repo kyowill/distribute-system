@@ -9,7 +9,8 @@ import "time"
 import "fmt"
 import "sync"
 import "sync/atomic"
-import "math/rand"
+
+// import "math/rand"
 
 // information about the servers of one replica group.
 type tGroup struct {
@@ -241,6 +242,7 @@ func TestMove(t *testing.T) {
 	}
 }
 
+/*
 func TestLimp(t *testing.T) {
 	tc := setup(t, "limp", false)
 	defer tc.cleanup()
@@ -365,3 +367,4 @@ func TestConcurrentUnreliable(t *testing.T) {
 	doConcurrent(t, true)
 	fmt.Printf("  ... Passed\n")
 }
+*/
