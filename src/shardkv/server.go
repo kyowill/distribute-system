@@ -239,7 +239,7 @@ func (kv *ShardKV) doGet(args *GetArgs) GetReply {
 	}
 
 	if !kv.shards[shard_index] {
-		fmt.Printf("shard = %v not ready \n", shard_index)
+		fmt.Printf("gid=%v, shard=%v not ready \n", kv.gid, shard_index)
 		reply.Err = ErrNotReady
 		reply.Value = ""
 		return reply
@@ -350,7 +350,6 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 	client_request := internal_request_identifier(args.Trans_to, args.Shard_index)
 	val, present := kv.cache[client_request]
 	if present {
-		fmt.Printf("receive cache shard index=%v, reply=%v, sender_trains=%v, self_trains=%v \n", args.Shard_index, val.(ReceiveShardReply), args.Trans_to, kv.transition_to)
 		return val.(ReceiveShardReply)
 	}
 
@@ -398,10 +397,11 @@ func (kv *ShardKV) doReconfigStart(args *ReconfigStartArgs) Reply {
 		return nil
 	}
 	config_next := kv.sm.Query(kv.config_now.Num + 1)
+	fmt.Printf("gid =%v, before shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
 	kv.config_prior = kv.config_now
 	kv.config_now = config_next
 	kv.transition_to = kv.config_now.Num
-	fmt.Printf("shard 2 state=%v, transition=%v \n", kv.shards[2], kv.transition_to)
+	fmt.Printf("gid =%v, after shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
 	kv.shards = shard_state(kv.config_prior.Shards, kv.gid)
 	//fmt.Printf("after shard 2 state=%v, transition=%v \n", kv.shards[2], kv.transition_to)
 	return nil
@@ -425,9 +425,9 @@ func (kv *ShardKV) ensure_updated() {
 
 func (kv *ShardKV) broadcast_shards() {
 	for shard_index, gid := range kv.config_now.Shards {
-		// if shard_index == 2 {
-		// 	fmt.Printf("shard=%v, group=%v, old group=%v \n", kv.shards[shard_index], gid, kv.gid)
-		// }
+		if shard_index == 2 {
+			fmt.Printf("shard=%v, group=%v, old group=%v \n", kv.shards[shard_index], gid, kv.gid)
+		}
 		if (kv.shards[shard_index]) && (gid != kv.gid) {
 			//fmt.Printf("shard=%v, group=%v \n", shard_index, gid)
 			kv.send_shard(shard_index, gid)
@@ -513,6 +513,7 @@ func (kv *ShardKV) tick() {
 			return
 		}
 		config_latest := kv.sm.Query(-1)
+		//fmt.Printf("gid =%v, config latest =%v \n", kv.gid, config_latest)
 		if config_latest.Num > kv.config_now.Num {
 			operation := make_op(ReconfigStart, ReconfigStartArgs{})
 			agreement_number := kv.paxos_agree(operation)
