@@ -401,7 +401,9 @@ func (kv *ShardKV) doReconfigStart(args *ReconfigStartArgs) Reply {
 	kv.config_prior = kv.config_now
 	kv.config_now = config_next
 	kv.transition_to = kv.config_now.Num
+	fmt.Printf("shard 2 state=%v, transition=%v \n", kv.shards[2], kv.transition_to)
 	kv.shards = shard_state(kv.config_prior.Shards, kv.gid)
+	//fmt.Printf("after shard 2 state=%v, transition=%v \n", kv.shards[2], kv.transition_to)
 	return nil
 }
 
