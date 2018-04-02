@@ -573,31 +573,38 @@ func (kv *ShardKV) tick() {
 	kv.ensure_updated()
 
 	if kv.transition_to == -1 {
-		//fmt.Println("tick1")
+
 		config_latest := kv.sm.Query(-1)
 
 		if config_latest.Num == 0 {
 			// do nothing
 			return
 		}
-		//fmt.Println("tick2")
-		if config_latest.Num == 1 {
-			if kv.config_now.Num == 0 {
-				operation := make_op(Initial, InitialArgs{})
-				agreement_number := kv.paxos_agree(operation)
-				kv.sync(agreement_number)
-				kv.perform_operation(agreement_number, operation)
-			}
-			return
+
+		if kv.config_now.Num == 0 {
+			operation := make_op(Initial, InitialArgs{})
+			agreement_number := kv.paxos_agree(operation)
+			kv.sync(agreement_number)
+			kv.perform_operation(agreement_number, operation)
 		}
-		//fmt.Println("tick3")
+
+		/*		if config_latest.Num == 1 {
+				if kv.config_now.Num == 0 {
+					operation := make_op(Initial, InitialArgs{})
+					agreement_number := kv.paxos_agree(operation)
+					kv.sync(agreement_number)
+					kv.perform_operation(agreement_number, operation)
+				}
+				return
+			}*/
+
 		if config_latest.Num > kv.config_now.Num {
 			operation := make_op(ReconfigStart, ReconfigStartArgs{})
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
 		}
-		//fmt.Println("tick4")
+
 	} else {
 		kv.broadcast_shards()
 		if kv.done_sending_shards() && kv.done_receiving_shards() {
