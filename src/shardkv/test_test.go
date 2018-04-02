@@ -8,8 +8,8 @@ import "os"
 import "time"
 import "fmt"
 
-// import "sync"
-// import "sync/atomic"
+import "sync"
+import "sync/atomic"
 
 import "math/rand"
 
@@ -121,7 +121,6 @@ func setup(t *testing.T, tag string, unreliable bool) *tCluster {
 	return tc
 }
 
-/*
 func TestBasic(t *testing.T) {
 	tc := setup(t, "basic", false)
 	defer tc.cleanup()
@@ -312,7 +311,6 @@ func TestLimp(t *testing.T) {
 	fmt.Printf("888888\n")
 	fmt.Printf("  ... Passed\n")
 }
-*/
 
 func doConcurrent(t *testing.T, unreliable bool) {
 	tc := setup(t, "concurrent-"+strconv.FormatBool(unreliable), unreliable)
@@ -360,11 +358,11 @@ func doConcurrent(t *testing.T, unreliable bool) {
 	}
 }
 
-/*func TestConcurrent(t *testing.T) {
+func TestConcurrent(t *testing.T) {
 	fmt.Printf("Test: Concurrent Put/Get/Move ...\n")
 	doConcurrent(t, false)
 	fmt.Printf("  ... Passed\n")
-}*/
+}
 
 func TestConcurrentUnreliable(t *testing.T) {
 	fmt.Printf("Test: Concurrent Put/Get/Move (unreliable) ...\n")

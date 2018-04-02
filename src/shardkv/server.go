@@ -523,50 +523,6 @@ func (kv *ShardKV) initial_config(args *InitialArgs) Reply {
 // Ask the shardmaster if there's a new configuration;
 // if so, re-configure.
 //
-/*func (kv *ShardKV) tick() {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-	kv.ensure_updated()
-
-	if kv.transition_to == -1 {
-
-		if kv.config_now.Num == 0 {
-			config := kv.sm.Query(1)
-			if config.Num == 1 {
-
-				//kv.config_prior = kv.config_now
-				copy_config(&kv.config_now, &kv.config_prior)
-				copy_config(&config, &kv.config_now)
-				//kv.config_now = config
-				// No shard transfers needed. Automatically have shards of first valid Config.
-				kv.shards = shard_state(kv.config_now.Shards, kv.gid)
-				// debug(fmt.Sprintf("(svr:%d,rg:%d) InitialConfig: %+v, %+v", self.me, self.gid, self.config_now, self.shards))
-				return
-			}
-			// No Join has been performed yet. ShardMaster still has initial Config
-			return
-		}
-		config_latest := kv.sm.Query(-1)
-		//fmt.Printf("gid =%v, config latest =%v \n", kv.gid, config_latest)
-		if config_latest.Num > kv.config_now.Num {
-			operation := make_op(ReconfigStart, ReconfigStartArgs{})
-			agreement_number := kv.paxos_agree(operation)
-			kv.sync(agreement_number)
-			kv.perform_operation(agreement_number, operation)
-		}
-	} else {
-		kv.broadcast_shards()
-		if kv.done_sending_shards() && kv.done_receiving_shards() {
-			operation := make_op(ReconfigEnd, ReconfigEndArgs{})
-			agreement_number := kv.paxos_agree(operation)
-			kv.sync(agreement_number)
-			kv.perform_operation(agreement_number, operation)
-			//fmt.Println("reconfig end")
-		}
-	}
-	return
-}*/
-
 func (kv *ShardKV) tick() {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -587,16 +543,6 @@ func (kv *ShardKV) tick() {
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
 		}
-
-		/*		if config_latest.Num == 1 {
-				if kv.config_now.Num == 0 {
-					operation := make_op(Initial, InitialArgs{})
-					agreement_number := kv.paxos_agree(operation)
-					kv.sync(agreement_number)
-					kv.perform_operation(agreement_number, operation)
-				}
-				return
-			}*/
 
 		if config_latest.Num > kv.config_now.Num {
 			operation := make_op(ReconfigStart, ReconfigStartArgs{})
