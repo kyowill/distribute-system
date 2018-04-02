@@ -29,6 +29,7 @@ type PutAppendArgs struct {
 }
 
 type ReconfigStartArgs struct{}
+type InitialArgs struct{}
 type ReconfigEndArgs struct{}
 type Reply interface{}
 

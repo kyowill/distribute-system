@@ -108,7 +108,7 @@ func (ck *Clerk) Get(key string) string {
 				args.Id = request_id
 				var reply GetReply
 				ok := call(srv, "ShardKV.Get", args, &reply)
-				fmt.Printf("get srv = %v, args = %v, response = %v \n", srv, *args, reply)
+				fmt.Printf("get srv = %v, args = %v, response = %v, config=%v \n", srv, *args, reply, ck.config)
 				if ok && (reply.Err == OK || reply.Err == ErrNoKey) {
 					return reply.Value
 				}
@@ -150,7 +150,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 				args.Id = request_id
 				var reply PutAppendReply
 				ok := call(srv, "ShardKV.PutAppend", args, &reply)
-				fmt.Printf("put append srv = %v, args = %v, response = %v \n", srv, *args, reply)
+				fmt.Printf("operation=%v, srv = %v, args = %v, response = %v, config=%v \n", op, srv, *args, reply, ck.config)
 				if ok && reply.Err == OK {
 					return
 				}

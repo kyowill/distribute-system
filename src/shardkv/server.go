@@ -60,6 +60,7 @@ const (
 	SentShard     = "SentShard"
 	ReconfigStart = "ReconfigStart"
 	ReconfigEnd   = "ReconfigEnd"
+	Initial       = "Initial"
 	Noop          = "Noop"
 )
 
@@ -175,6 +176,9 @@ func (self *ShardKV) perform_operation(agreement int, operation Op) interface{} 
 	case ReconfigEnd:
 		var reconfig_end_args = (operation.Args).(ReconfigEndArgs)
 		result = self.doReconfigEnd(&reconfig_end_args)
+	case Initial:
+		var initial_args = (operation.Args).(InitialArgs)
+		result = self.initial_config(&initial_args)
 	case Noop:
 		//
 	default:
@@ -201,6 +205,15 @@ func internal_request_identifier(transition_id int, request_id int) string {
 func make_op(name string, args interface{}) Op {
 	operation := Op{Id: generate_uuid(), Name: name, Args: args}
 	return operation
+}
+
+func copy_config(config *shardmaster.Config, copy *shardmaster.Config) {
+	copy.Num = config.Num
+	copy.Shards = config.Shards
+	copy.Groups = map[int64][]string{}
+	for key, value := range config.Groups {
+		copy.Groups[key] = value
+	}
 }
 
 // RPC handler for client Get requests
@@ -377,7 +390,7 @@ func (kv *ShardKV) doReceiveShard(args *ReceiveShardArgs) ReceiveShardReply {
 
 func (kv *ShardKV) doSentShard(args *SentShardArgs) SentShardReply {
 	if kv.transition_to == args.Trans_to {
-		kv.remove_shard(args.Trans_to)
+		kv.remove_shard(args.Shard_index)
 	}
 	return SentShardReply{}
 }
@@ -388,6 +401,7 @@ func (kv *ShardKV) remove_shard(shard_index int) {
 			delete(kv.storage, key)
 		}
 	}
+	//fmt.Printf("group =%v, remove shard index=%v\n", kv.gid, shard_index)
 	kv.shards[shard_index] = false
 }
 
@@ -397,13 +411,14 @@ func (kv *ShardKV) doReconfigStart(args *ReconfigStartArgs) Reply {
 		return nil
 	}
 	config_next := kv.sm.Query(kv.config_now.Num + 1)
-	fmt.Printf("gid =%v, before shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
-	kv.config_prior = kv.config_now
-	kv.config_now = config_next
+	//fmt.Printf("gid =%v, before shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
+	//kv.config_prior = kv.config_now
+	copy_config(&kv.config_now, &kv.config_prior)
+	//kv.config_now = config_next
+	copy_config(&config_next, &kv.config_now)
 	kv.transition_to = kv.config_now.Num
-	fmt.Printf("gid =%v, after shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
 	kv.shards = shard_state(kv.config_prior.Shards, kv.gid)
-	//fmt.Printf("after shard 2 state=%v, transition=%v \n", kv.shards[2], kv.transition_to)
+	//fmt.Printf("gid =%v, after shard 2 state=%v, transition=%v \n", kv.gid, kv.shards[2], kv.transition_to)
 	return nil
 }
 
@@ -424,10 +439,11 @@ func (kv *ShardKV) ensure_updated() {
 }
 
 func (kv *ShardKV) broadcast_shards() {
+	//fmt.Printf("broadcast group=%v, kv.shards=%v \n", kv.gid, kv.shards)
 	for shard_index, gid := range kv.config_now.Shards {
-		if shard_index == 2 {
-			fmt.Printf("shard=%v, group=%v, old group=%v \n", kv.shards[shard_index], gid, kv.gid)
-		}
+		// if shard_index == 2 {
+		// 	fmt.Printf("shard=%v, group=%v, old group=%v \n", kv.shards[shard_index], gid, kv.gid)
+		// }
 		if (kv.shards[shard_index]) && (gid != kv.gid) {
 			//fmt.Printf("shard=%v, group=%v \n", shard_index, gid)
 			kv.send_shard(shard_index, gid)
@@ -460,7 +476,7 @@ func (kv *ShardKV) send_shard(shard_index int, gid int64) {
 			agreement_number := kv.paxos_agree(operation)
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
-			//fmt.Printf("server = %v is ok \n", srv)
+			//fmt.Printf("sent  group=%v, kv.shards=%v \n", kv.gid, kv.shards)
 			return
 		}
 	}
@@ -488,22 +504,40 @@ func (self *ShardKV) done_receiving_shards() bool {
 	return true
 }
 
+func (kv *ShardKV) initial_config(args *InitialArgs) Reply {
+	//fmt.Println("initial_config 0")
+	if kv.transition_to == kv.config_now.Num {
+		return nil
+	}
+	//fmt.Println("initial_config 1")
+	config_next := kv.sm.Query(1)
+	//fmt.Println("initial_config 2")
+	copy_config(&kv.config_now, &kv.config_prior)
+	copy_config(&config_next, &kv.config_now)
+	kv.shards = shard_state(kv.config_prior.Shards, kv.gid)
+	//fmt.Println("initial_config 3")
+	return nil
+}
+
 //
 // Ask the shardmaster if there's a new configuration;
 // if so, re-configure.
 //
-func (kv *ShardKV) tick() {
+/*func (kv *ShardKV) tick() {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	kv.ensure_updated()
 
 	if kv.transition_to == -1 {
+
 		if kv.config_now.Num == 0 {
-			// conf := kv.sm.Query(0)
 			config := kv.sm.Query(1)
 			if config.Num == 1 {
-				kv.config_prior = kv.config_now
-				kv.config_now = config
+
+				//kv.config_prior = kv.config_now
+				copy_config(&kv.config_now, &kv.config_prior)
+				copy_config(&config, &kv.config_now)
+				//kv.config_now = config
 				// No shard transfers needed. Automatically have shards of first valid Config.
 				kv.shards = shard_state(kv.config_now.Shards, kv.gid)
 				// debug(fmt.Sprintf("(svr:%d,rg:%d) InitialConfig: %+v, %+v", self.me, self.gid, self.config_now, self.shards))
@@ -520,6 +554,50 @@ func (kv *ShardKV) tick() {
 			kv.sync(agreement_number)
 			kv.perform_operation(agreement_number, operation)
 		}
+	} else {
+		kv.broadcast_shards()
+		if kv.done_sending_shards() && kv.done_receiving_shards() {
+			operation := make_op(ReconfigEnd, ReconfigEndArgs{})
+			agreement_number := kv.paxos_agree(operation)
+			kv.sync(agreement_number)
+			kv.perform_operation(agreement_number, operation)
+			//fmt.Println("reconfig end")
+		}
+	}
+	return
+}*/
+
+func (kv *ShardKV) tick() {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	kv.ensure_updated()
+
+	if kv.transition_to == -1 {
+		//fmt.Println("tick1")
+		config_latest := kv.sm.Query(-1)
+
+		if config_latest.Num == 0 {
+			// do nothing
+			return
+		}
+		//fmt.Println("tick2")
+		if config_latest.Num == 1 {
+			if kv.config_now.Num == 0 {
+				operation := make_op(Initial, InitialArgs{})
+				agreement_number := kv.paxos_agree(operation)
+				kv.sync(agreement_number)
+				kv.perform_operation(agreement_number, operation)
+			}
+			return
+		}
+		//fmt.Println("tick3")
+		if config_latest.Num > kv.config_now.Num {
+			operation := make_op(ReconfigStart, ReconfigStartArgs{})
+			agreement_number := kv.paxos_agree(operation)
+			kv.sync(agreement_number)
+			kv.perform_operation(agreement_number, operation)
+		}
+		//fmt.Println("tick4")
 	} else {
 		kv.broadcast_shards()
 		if kv.done_sending_shards() && kv.done_receiving_shards() {
@@ -585,6 +663,7 @@ func StartServer(gid int64, shardmasters []string,
 	gob.Register(ReconfigEndArgs{})
 	gob.Register(ReceiveShardArgs{})
 	gob.Register(SentShardArgs{})
+	gob.Register(InitialArgs{})
 	//gob.Register(NoopArgs{})
 	gob.Register(KVPair{})
 	kv.config_prior = shardmaster.Config{}        // initial prior Config

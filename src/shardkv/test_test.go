@@ -7,10 +7,11 @@ import "strconv"
 import "os"
 import "time"
 import "fmt"
-import "sync"
-import "sync/atomic"
 
-// import "math/rand"
+// import "sync"
+// import "sync/atomic"
+
+import "math/rand"
 
 // information about the servers of one replica group.
 type tGroup struct {
@@ -183,7 +184,7 @@ func TestBasic(t *testing.T) {
 
 	fmt.Printf("  ... Passed\n")
 }
-*/
+
 func TestMove(t *testing.T) {
 	tc := setup(t, "move", false)
 	defer tc.cleanup()
@@ -198,7 +199,7 @@ func TestMove(t *testing.T) {
 	for i := 0; i < shardmaster.NShards; i++ {
 		ck.Put(string('0'+i), string('0'+i))
 	}
-	fmt.Println("......")
+	//fmt.Println("......")
 	// add group 1.
 	tc.join(1)
 	time.Sleep(5 * time.Second)
@@ -209,7 +210,7 @@ func TestMove(t *testing.T) {
 			t.Fatalf("missing key/value")
 		}
 	}
-	fmt.Println("......")
+	//fmt.Println("......")
 	// remove sockets from group 0.
 	for _, port := range tc.groups[0].ports {
 		os.Remove(port)
@@ -230,7 +231,7 @@ func TestMove(t *testing.T) {
 			}
 		}(i)
 	}
-	fmt.Println("......")
+	//fmt.Println("......")
 	time.Sleep(10 * time.Second)
 
 	ccc := atomic.LoadInt32(&count)
@@ -242,7 +243,6 @@ func TestMove(t *testing.T) {
 	}
 }
 
-/*
 func TestLimp(t *testing.T) {
 	tc := setup(t, "limp", false)
 	defer tc.cleanup()
@@ -262,7 +262,10 @@ func TestLimp(t *testing.T) {
 	for gi := 0; gi < len(tc.groups); gi++ {
 		sa := tc.groups[gi].servers
 		ns := len(sa)
-		sa[rand.Int()%ns].kill()
+		marked := rand.Int() % ns
+		fmt.Printf("to be dead = %v \n", marked)
+		sa[marked].kill()
+		//time.Sleep(1000 * time.Millisecond)
 	}
 
 	keys := make([]string, 10)
@@ -287,7 +290,7 @@ func TestLimp(t *testing.T) {
 			ck.Put(keys[i], vals[i])
 		}
 	}
-
+	fmt.Printf("666666\n")
 	// are keys still there after leaves?
 	for gi := 0; gi < len(tc.groups)-1; gi++ {
 		tc.leave(gi)
@@ -306,9 +309,10 @@ func TestLimp(t *testing.T) {
 			ck.Put(keys[i], vals[i])
 		}
 	}
-
+	fmt.Printf("888888\n")
 	fmt.Printf("  ... Passed\n")
 }
+*/
 
 func doConcurrent(t *testing.T, unreliable bool) {
 	tc := setup(t, "concurrent-"+strconv.FormatBool(unreliable), unreliable)
@@ -362,9 +366,8 @@ func TestConcurrent(t *testing.T) {
 	fmt.Printf("  ... Passed\n")
 }
 
-func TestConcurrentUnreliable(t *testing.T) {
+/*func TestConcurrentUnreliable(t *testing.T) {
 	fmt.Printf("Test: Concurrent Put/Get/Move (unreliable) ...\n")
 	doConcurrent(t, true)
 	fmt.Printf("  ... Passed\n")
-}
-*/
+}*/
